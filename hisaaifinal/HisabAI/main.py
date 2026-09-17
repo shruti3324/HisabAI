@@ -2150,6 +2150,34 @@ THEME_SCRIPT = """
         50
     );
 
+    // Shared helper used by Home and Dashboard transaction tables.
+    window.formatItems = function(items, fallback) {
+        let values = [];
+        if (Array.isArray(items)) {
+            values = items;
+        } else if (items !== undefined && items !== null && String(items).trim()) {
+            try {
+                const parsed = JSON.parse(String(items));
+                values = Array.isArray(parsed) ? parsed : [parsed];
+            } catch (e) {
+                values = String(items).split(/[,\n]+/);
+            }
+        } else if (fallback) {
+            values = String(fallback).split(/[,\n]+/);
+        }
+        values = values.map(v => String(v).trim()).filter(Boolean);
+        if (!values.length) return '—';
+        const esc = v => String(v)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+        return '<ul style="margin:0;padding-left:18px;">' +
+            values.map(v => '<li>' + esc(v) + '</li>').join('') +
+            '</ul>';
+    };
+
 })();
 
 </script>
@@ -2221,9 +2249,14 @@ def home_html():
     async function uploadVoice(blob){const status=document.getElementById('voiceStatus'),box=document.getElementById('voiceResult');status.textContent='Processing with AI...';try{const f=new FormData();f.append('file',blob,'voice.webm');const r=await fetch('/api/process_voice_note',{method:'POST',body:f});const text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error(text||'Server returned invalid response.')}if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Voice processing failed.');const t=d.transaction||d;box.innerHTML=`<div class="card" style="text-align:left;"><div class="section-title">AI Transaction Preview</div><p><b>Customer:</b> ${escapeHtml(t.customer_name||t.customer||'-')}</p><p><b>Items:</b> ${formatItems(t.items,t.item)}</p><p><b>Total:</b> ₹${Number(t.total_amount||0).toLocaleString('en-IN')}</p><p><b>Paid:</b> ₹${Number(t.paid_amount||0).toLocaleString('en-IN')}</p><p><b>Outstanding:</b> ₹${Number(t.outstanding_amount||0).toLocaleString('en-IN')}</p><input id="voicePhone" class="input" style="margin-top:7px;" placeholder="Customer phone (optional)" type="tel"><button onclick='confirmVoiceTransaction(${JSON.stringify(t)})' class="primary-btn" style="margin-top:15px;">✓ Confirm & Save</button></div>`;status.textContent='AI understood your transaction';}catch(e){console.error(e);status.textContent='Voice processing failed';box.innerHTML=`<div class="card"><div class="status-error">${escapeHtml(e.message)}</div></div>`;}}
     function parseItemsClient(value){return value?String(value).split(/[,\n]+/).map(x=>x.trim()).filter(Boolean):[];}
     async function confirmVoiceTransaction(t){try{const pi=document.getElementById('voicePhone'),phone=pi?pi.value.trim():'';const r=await fetch('/api/transactions/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer:t.customer_name||t.customer||'',phone:phone||null,item:(Array.isArray(t.items)&&t.items.length?t.items[0]:(t.item||null)),items:(Array.isArray(t.items)?t.items:parseItemsClient(t.item)),transaction_type:t.intent||'sale',total_amount:Number(t.total_amount||0),paid_amount:Number(t.paid_amount||0),payment_method:t.payment_method||null,due_date:t.due_date||null,payment_status:t.payment_status||null,detected_language:t.language||t.detected_language||null,confidence:Number(t.confidence||0),raw_transcript:t.transcript||t.raw_transcript||null})});const d=await r.json();if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Could not save transaction.');document.getElementById('voiceStatus').textContent='Transaction saved ✓';document.getElementById('voiceResult').innerHTML='<div class="status-ok">✓ Transaction saved successfully.</div>';currentPage=1;await loadHome();}catch(e){document.getElementById('voiceStatus').textContent=e.message;}}
-    const voiceBtn=document.getElementById('voiceButton');
-    if(voiceBtn){voiceBtn.addEventListener('click',window.startVoice);}
-    loadHome();
+    function initializeHome(){
+        if(!document.getElementById('transactionsBody')){
+            setTimeout(initializeHome,100);
+            return;
+        }
+        loadHome();
+    }
+    setTimeout(initializeHome,50);
     </script>"""
 
 
@@ -2651,16 +2684,21 @@ def reminders_html():
 def setup_page(
     html: str,
 ):
+    """Render the page HTML and execute embedded page JavaScript reliably.
+
+    NiceGUI can update page fragments dynamically. To avoid scripts being inserted
+    as inert HTML, move every inline <script> block into the document head and
+    keep only markup in the body fragment.
+    """
+    scripts = re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>", html, flags=re.IGNORECASE | re.DOTALL)
+    body_html = re.sub(r"<script(?:\s[^>]*)?>.*?</script>", "", html, flags=re.IGNORECASE | re.DOTALL)
 
     ui.add_head_html(APP_CSS)
+    ui.add_head_html(THEME_SCRIPT)
+    for script in scripts:
+        ui.add_head_html(f"<script>\n{script}\n</script>")
 
-    ui.add_body_html(
-        html
-    )
-
-    ui.add_body_html(
-        THEME_SCRIPT
-    )
+    ui.add_body_html(body_html)
 
 
 @ui.page("/")
