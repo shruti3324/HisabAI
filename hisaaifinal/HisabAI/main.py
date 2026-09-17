@@ -17,7 +17,7 @@ from sqlmodel import select
 from nicegui import ui
 
 from db import get_session, init_db
-from models import Customer, Transaction, Reminder
+from models import Customer, Transaction, Reminder, Payment
 
 from services import ai_service
 
@@ -808,6 +808,7 @@ class CustomerUpdateRequest(BaseModel):
     reminder_consent: Optional[bool] = None
     reminder_frequency_days: Optional[int] = None
     quiet_hours: Optional[str] = None
+    clear_outstanding: bool = False
 
 
 @fastapi_app.get("/api/customers")
@@ -985,6 +986,40 @@ async def update_customer(
                 payload.quiet_hours
             )
 
+        cleared_outstanding = 0.0
+
+        # Optional settlement action: mark all active outstanding
+        # transactions for this customer as fully paid. The original
+        # sale totals remain unchanged, so Dashboard keeps the sale
+        # history while Received increases and Outstanding becomes zero.
+        if payload.clear_outstanding:
+            transactions = session.exec(
+                select(Transaction)
+                .where(
+                    Transaction.user_id == USER_ID,
+                    Transaction.customer_id == customer_id,
+                    Transaction.status == "active",
+                )
+            ).all()
+
+            for transaction in transactions:
+                due = money(transaction.outstanding_amount)
+                if due <= 0:
+                    continue
+
+                transaction.paid_amount = round(
+                    money(transaction.paid_amount) + due,
+                    2,
+                )
+                transaction.outstanding_amount = 0.0
+                transaction.payment_status = "paid"
+                transaction.updated_at = datetime.utcnow()
+                session.add(transaction)
+                cleared_outstanding = round(
+                    cleared_outstanding + due,
+                    2,
+                )
+
         customer.updated_at = datetime.utcnow()
 
         session.add(customer)
@@ -993,7 +1028,12 @@ async def update_customer(
 
         return {
             "success": True,
-            "message": "Customer updated.",
+            "message": (
+                "Customer updated and outstanding cleared."
+                if payload.clear_outstanding and cleared_outstanding > 0
+                else "Customer updated."
+            ),
+            "cleared_outstanding": cleared_outstanding,
             "customer":
                 customer_to_dict(customer),
         }
@@ -1003,18 +1043,74 @@ async def update_customer(
 async def delete_customer(customer_id: int):
     with get_session() as session:
         customer = session.get(Customer, customer_id)
+
         if not customer or customer.user_id != USER_ID:
-            raise HTTPException(status_code=404, detail="Customer not found.")
-        transactions = session.exec(select(Transaction).where(
-            Transaction.user_id == USER_ID,
-            Transaction.customer_id == customer_id,
-            Transaction.status == "active",
-        )).all()
-        if transactions:
-            raise HTTPException(status_code=409, detail="This customer has transactions and cannot be deleted. Update the customer instead.")
+            raise HTTPException(
+                status_code=404,
+                detail="Customer not found.",
+            )
+
+        all_transactions = session.exec(
+            select(Transaction).where(
+                Transaction.user_id == USER_ID,
+                Transaction.customer_id == customer_id,
+            )
+        ).all()
+
+        outstanding = round(
+            sum(
+                money(t.outstanding_amount)
+                for t in all_transactions
+                if t.status == "active"
+            ),
+            2,
+        )
+
+        if outstanding > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Customer has ₹{outstanding:,.2f} outstanding. "
+                    "Open Update, tick 'Clear outstanding balance', "
+                    "and save before deleting the customer."
+                ),
+            )
+
+        # Preserve all transaction history in the dashboard while removing
+        # the customer record itself. The transaction already stores the
+        # customer name, so the financial history remains visible.
+        for transaction in all_transactions:
+            transaction.customer_id = None
+            transaction.updated_at = datetime.utcnow()
+            session.add(transaction)
+
+        # These records have a required customer_id, so remove their
+        # provider/reminder history as part of the explicit customer deletion.
+        reminders = session.exec(
+            select(Reminder).where(
+                Reminder.user_id == USER_ID,
+                Reminder.customer_id == customer_id,
+            )
+        ).all()
+        for reminder in reminders:
+            session.delete(reminder)
+
+        payments = session.exec(
+            select(Payment).where(
+                Payment.user_id == USER_ID,
+                Payment.customer_id == customer_id,
+            )
+        ).all()
+        for payment in payments:
+            session.delete(payment)
+
         session.delete(customer)
         session.commit()
-        return {"success": True, "message": "Customer deleted."}
+
+        return {
+            "success": True,
+            "message": "Customer deleted. Settled transaction history was preserved in the dashboard.",
+        }
 
 
 @fastapi_app.get(
@@ -2622,10 +2718,10 @@ def customers_html():
     function toggleAddCustomer(){const p=document.getElementById('addCustomerPanel');p.style.display=p.style.display==='none'?'block':'none';}
     async function loadCustomers(){try{const r=await fetch('/api/customers');const d=await r.json();if(!d.success)throw new Error(d.error||'Could not load customers.');customersData=d.customers||[];renderCustomers();}catch(e){document.getElementById('customersList').innerHTML=`<div class="card status-error">${escapeHtml(e.message)}</div>`;}}
     function renderCustomers(){const b=document.getElementById('customersList');if(!customersData.length){b.innerHTML='<div class="card empty">No customers yet. Use + Add Customer to create one.</div>';return;}b.innerHTML=customersData.map(c=>`<div class="card customer-row"><div><div style="font-size:18px;font-weight:800;">${escapeHtml(c.name||'-')}</div><div class="customer-meta">${c.phone?'📱 '+escapeHtml(c.phone):'No phone'} · Outstanding: <b>₹${Number(c.outstanding_amount||0).toLocaleString('en-IN')}</b></div></div><div class="customer-actions"><button class="secondary-btn" onclick="openEdit(${c.id})">Update</button><button class="danger-btn" onclick="deleteCustomer(${c.id})">Delete</button></div></div>`).join('');}
-    function openEdit(id){const c=customersData.find(x=>x.id===id);if(!c)return;editingCustomerId=id;const p=document.getElementById('editPanel');p.style.display='block';p.innerHTML=`<div class="section-title">Update Customer</div><div class="form-grid"><input id="editName" class="input" value="${escapeHtml(c.name||'')}" placeholder="Customer name"><input id="editPhone" class="input" value="${escapeHtml(c.phone||'')}" placeholder="Phone" type="tel"><select id="editLanguage" class="input"><option value="hindi">Hindi</option><option value="marathi">Marathi</option><option value="english">English</option></select><input id="editFrequency" class="input" type="number" min="1" value="${Number(c.reminder_frequency_days||3)}" placeholder="Reminder frequency (days)"></div><div class="checkbox-row"><input id="editReminderEnabled" type="checkbox" ${c.reminder_enabled?'checked':''}><label for="editReminderEnabled">Enable payment reminders</label></div><div class="checkbox-row"><input id="editReminderConsent" type="checkbox" ${c.reminder_consent?'checked':''}><label for="editReminderConsent">Customer has given reminder consent</label></div><div style="margin-top:15px;display:flex;gap:10px;"><button class="primary-btn" onclick="saveEdit()">Save Changes</button><button class="secondary-btn" onclick="closeEdit()">Cancel</button></div><div id="editResult" style="margin-top:12px;"></div>`;document.getElementById('editLanguage').value=c.preferred_reminder_language||'hindi';p.scrollIntoView({behavior:'smooth',block:'start'});}
+    function openEdit(id){const c=customersData.find(x=>x.id===id);if(!c)return;editingCustomerId=id;const p=document.getElementById('editPanel');p.style.display='block';const outstanding=Number(c.outstanding_amount||0);p.innerHTML=`<div class="section-title">Update Customer</div><div class="form-grid"><input id="editName" class="input" value="${escapeHtml(c.name||'')}" placeholder="Customer name"><input id="editPhone" class="input" value="${escapeHtml(c.phone||'')}" placeholder="Phone" type="tel"><select id="editLanguage" class="input"><option value="hindi">Hindi</option><option value="marathi">Marathi</option><option value="english">English</option></select><input id="editFrequency" class="input" type="number" min="1" value="${Number(c.reminder_frequency_days||3)}" placeholder="Reminder frequency (days)"></div><div class="checkbox-row"><input id="editReminderEnabled" type="checkbox" ${c.reminder_enabled?'checked':''}><label for="editReminderEnabled">Enable payment reminders</label></div><div class="checkbox-row"><input id="editReminderConsent" type="checkbox" ${c.reminder_consent?'checked':''}><label for="editReminderConsent">Customer has given reminder consent</label></div><div style="margin-top:14px;padding:14px;border-radius:12px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.18);"><div style="font-weight:800;">Outstanding: ₹${outstanding.toLocaleString('en-IN')}</div><div class="checkbox-row" style="margin-top:10px;"><input id="editClearOutstanding" type="checkbox" ${outstanding<=0?'disabled':''}><label for="editClearOutstanding">Clear outstanding balance when I save changes</label></div><div style="margin-top:6px;font-size:12px;color:var(--muted);">This marks the remaining udhaar as paid, so Dashboard Received increases and Outstanding becomes ₹0.</div></div><div style="margin-top:15px;display:flex;gap:10px;"><button class="primary-btn" onclick="saveEdit()">Save Changes</button><button class="secondary-btn" onclick="closeEdit()">Cancel</button></div><div id="editResult" style="margin-top:12px;"></div>`;document.getElementById('editLanguage').value=c.preferred_reminder_language||'hindi';p.scrollIntoView({behavior:'smooth',block:'start'});}
     function closeEdit(){editingCustomerId=null;const p=document.getElementById('editPanel');p.style.display='none';p.innerHTML='';}
-    async function saveEdit(){if(!editingCustomerId)return;const result=document.getElementById('editResult');try{const r=await fetch('/api/customers/'+editingCustomerId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('editName').value.trim(),phone:document.getElementById('editPhone').value.trim()||null,preferred_reminder_language:document.getElementById('editLanguage').value,reminder_enabled:document.getElementById('editReminderEnabled').checked,reminder_consent:document.getElementById('editReminderConsent').checked,reminder_frequency_days:Number(document.getElementById('editFrequency').value||3)})});const d=await r.json();if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Could not update customer.');await loadCustomers();closeEdit();}catch(e){result.innerHTML=`<div class="status-error">${escapeHtml(e.message)}</div>`;}}
-    async function deleteCustomer(id){const c=customersData.find(x=>x.id===id);if(!c)return;if(!confirm(`Delete ${c.name}? Customers with active transactions cannot be deleted.`))return;try{const r=await fetch('/api/customers/'+id,{method:'DELETE'});const d=await r.json();if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Could not delete customer.');if(editingCustomerId===id)closeEdit();await loadCustomers();}catch(e){alert(e.message);}}
+    async function saveEdit(){if(!editingCustomerId)return;const result=document.getElementById('editResult');try{const clearOutstanding=document.getElementById('editClearOutstanding')?.checked||false;const r=await fetch('/api/customers/'+editingCustomerId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('editName').value.trim(),phone:document.getElementById('editPhone').value.trim()||null,preferred_reminder_language:document.getElementById('editLanguage').value,reminder_enabled:document.getElementById('editReminderEnabled').checked,reminder_consent:document.getElementById('editReminderConsent').checked,reminder_frequency_days:Number(document.getElementById('editFrequency').value||3),clear_outstanding:clearOutstanding})});const d=await r.json();if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Could not update customer.');result.innerHTML=`<div class="status-ok">✓ ${escapeHtml(d.message||'Customer updated.')}${Number(d.cleared_outstanding||0)>0?' ₹'+Number(d.cleared_outstanding).toLocaleString('en-IN')+' cleared.':''}</div>`;await loadCustomers();if(Number(d.cleared_outstanding||0)>0){setTimeout(()=>closeEdit(),900);}else{closeEdit();}}catch(e){result.innerHTML=`<div class="status-error">${escapeHtml(e.message)}</div>`;}}
+    async function deleteCustomer(id){const c=customersData.find(x=>x.id===id);if(!c)return;const outstanding=Number(c.outstanding_amount||0);if(outstanding>0){alert(`₹${outstanding.toLocaleString('en-IN')} is still outstanding. Open Update → tick 'Clear outstanding balance when I save changes' → Save Changes, then delete the customer.`);openEdit(id);return;}if(!confirm(`Delete ${c.name}? Settled transaction history will stay in the dashboard, but this customer and its reminder/payment records will be removed.`))return;try{const r=await fetch('/api/customers/'+id,{method:'DELETE'});const d=await r.json();if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Could not delete customer.');if(editingCustomerId===id)closeEdit();await loadCustomers();}catch(e){alert(e.message);}}
     async function addCustomer(){const result=document.getElementById('addCustomerResult'),name=document.getElementById('newCustomerName').value.trim(),phone=document.getElementById('newCustomerPhone').value.trim();if(!name){result.innerHTML='<div class="status-error">Customer name is required.</div>';return;}try{const r=await fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone:phone||null,reminder_enabled:document.getElementById('newReminderEnabled').checked,reminder_consent:document.getElementById('newReminderConsent').checked})});const d=await r.json();if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Could not create customer.');result.innerHTML='<div class="status-ok">✓ Customer saved.</div>';document.getElementById('newCustomerName').value='';document.getElementById('newCustomerPhone').value='';await loadCustomers();}catch(e){result.innerHTML=`<div class="status-error">${escapeHtml(e.message)}</div>`;}}
     loadCustomers();
     </script>"""
