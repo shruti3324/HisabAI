@@ -1,296 +1,231 @@
-# HisabAI Evaluation Test Cases
+HisabAI — Evaluator Test Cases
 
-These test cases are designed to verify the complete Voice → AI → Confirmation → Ledger workflow.
+The official challenge asks participants to test realistic and complex sample data and document the cases in the GitHub README. fileciteturn10file0L70-L78
 
----
+ID
 
-## Test Case 1 — Fully Paid Sale
+Scenario
 
-### Input
+Test input/action
 
-> "Ramesh ne 500 rupaye ka maal liya aur 500 diye."
+Expected result
 
-### Expected
+TC01
 
-```text
-Customer: Ramesh
-Total: ₹500
-Paid: ₹500
-Outstanding: ₹0
-Type: Sale
-```
+English paid sale
 
-### Expected behavior
+"Ramesh bought goods for 500 and paid 500."
 
-The application should identify the transaction as fully paid.
+Total ₹500, paid ₹500, outstanding ₹0, paid status
 
----
+TC02
 
-## Test Case 2 — Partial Payment
+Hindi udhaar
 
-### Input
+"Ramesh ne 500 rupaye ka maal liya, 200 diye."
 
-> "Ramesh ne 1500 rupaye ka maal liya, 500 diye."
+Total ₹500, paid ₹200, outstanding ₹300
 
-### Expected
+TC03
 
-```text
-Customer: Ramesh
-Total: ₹1500
-Paid: ₹500
-Outstanding: ₹1000
-Type: Credit Sale
-```
+Marathi input
 
----
+Speak a Marathi transaction containing customer, items and amounts
 
-## Test Case 3 — Complete Udhaar
+AI preview contains structured fields
 
-### Input
+TC04
 
-> "Suresh ne 800 ka saman udhaar liya."
+Hinglish input
 
-### Expected
+Speak a Hinglish transaction
 
-```text
-Customer: Suresh
-Total: ₹800
-Paid: ₹0
-Outstanding: ₹800
-Type: Credit Sale
-```
+AI accepts mixed-language input and returns structured data
 
----
+TC05
 
-## Test Case 4 — Hindi Input
+Multiple items
 
-### Input
+Enter Paneer, Tomato, Rice
 
-> "Riya ne do hazaar rupaye ka samaan liya, ek hazaar diye."
+All items appear as a list in the transaction
 
-### Expected
+TC06
 
-```text
-Customer: Riya
-Total: ₹2000
-Paid: ₹1000
-Outstanding: ₹1000
-```
+Manual entry
 
----
+Enter customer, multiple items, total and paid
 
-## Test Case 5 — Marathi Input
+Transaction saved and visible in Recent Transactions
 
-### Input
+TC07
 
-> Marathi transaction describing a customer purchasing goods on credit.
+AI confirmation
 
-### Expected behavior
+Record a voice note and inspect preview before saving
 
-The system should:
+User sees customer/items/total/paid/outstanding before ledger write
 
-1. Transcribe the speech.
-2. Preserve the customer name.
-3. Identify the transaction amount.
-4. Identify the paid amount if present.
-5. Calculate outstanding amount.
-6. Show the extracted result for confirmation.
+TC08
 
----
+Customer reuse
 
-## Test Case 6 — Hinglish Input
+Save another transaction for an existing normalized name
 
-### Input
+Existing customer is reused
 
-> "Amit ne 1200 ka maal liya, 400 cash diye."
+TC09
 
-### Expected
+Dashboard
 
-```text
-Customer: Amit
-Total: ₹1200
-Paid: ₹400
-Outstanding: ₹800
-```
+Save a transaction, then open Dashboard
 
----
+Sales/Received/Outstanding/Customers update
 
-## Test Case 7 — Multiple Transactions
+TC10
 
-Record transactions for:
+Recent Activity
 
-```text
-Ramesh
-Suresh
-Riya
-Amit
-```
+Open Dashboard after saving transactions
 
-### Expected behavior
+Transaction rows are visible with item list
 
-Each customer should be represented correctly in the ledger.
+TC11
 
----
+Customer update
 
-## Test Case 8 — Partial Repayment
+Edit customer name/phone/reminder settings
 
-Existing outstanding:
+Changes persist
 
-```text
-Customer: Ramesh
-Outstanding: ₹1000
-```
+TC12
 
-Record:
+Clear outstanding
 
-> "Ramesh ne 600 rupaye diye."
+Customer has ₹300 outstanding; tick clear outstanding and save
 
-### Expected
+Remaining ₹300 is settled; Received increases by ₹300; Outstanding becomes ₹0
 
-Outstanding should become:
+TC13
 
-```text
-₹400
-```
+Delete after settlement
 
----
+Delete customer after all active outstanding is cleared
 
-## Test Case 9 — Full Repayment
+Customer deletion succeeds and settled history remains available in Dashboard
 
-Existing outstanding:
+TC14
 
-```text
-₹400
-```
+Delete protection
 
-Record:
+Try to delete customer with active outstanding transaction
 
-> "Ramesh ne 400 rupaye diye."
+API blocks deletion with a useful message
 
-### Expected
+TC15
 
-Outstanding:
+Reminder candidate
 
-```text
-₹0
-```
+Customer has eligible outstanding balance and consent/settings
 
----
+Customer appears in reminder candidates
 
-## Test Case 10 — Customer Search
+TC16
 
-Search for:
+Reminder call action
 
-```text
-Ramesh
-```
+Click Send Reminder
 
-### Expected
+Backend endpoint is called and result is shown in UI
 
-The customer page should show the corresponding customer information and transaction history.
+TC17
 
----
+Twilio trial restriction
 
-## Test Case 11 — Business Query
+Attempt outbound call under a restricted Twilio trial account
 
-### Input
+UI reports provider restriction instead of false success
 
-> "Who owes me more than 500?"
+TC18
 
-### Expected
+Reminder scheduling
 
-The application should return customers whose ledger-derived outstanding balance is greater than ₹500.
+Schedule a future reminder
 
-The query should use supported database operations rather than arbitrary model-generated SQL.
+Reminder is stored as scheduled and scheduler can process it
 
----
+TC19
 
-## Test Case 12 — Human Confirmation
+Voice confirmation
 
-Record:
+Confirm the AI transaction
 
-> "Ramesh ne 1500 rupaye ka maal liya, 500 diye."
+Transaction is persisted and Home ledger refreshes
 
-### Expected behavior
+TC20
 
-The system should display the proposed transaction before saving it.
+Microphone denied
 
-The transaction should not be committed until the user confirms.
+Deny browser mic permission
 
----
+UI shows microphone-permission error
 
-## Test Case 13 — Incorrect AI Extraction
+TC21
 
-If the AI proposes an incorrect amount or customer:
+Health
 
-### Expected behavior
+GET /api/health
 
-The user should be able to review/correct the proposed information before saving.
+JSON reports service health and configured-provider flags
 
-Incorrect AI output should not silently become a ledger record.
+TC22
 
----
+Invalid transaction
 
-## Test Case 14 — Invalid/Unclear Audio
+Enter total <= 0 or paid > total
 
-Provide unclear or incomplete speech.
+UI rejects invalid financial input
 
-### Expected behavior
+TC23
 
-The application should display an error or request clarification rather than creating an unreliable financial transaction.
+Reverse transaction
 
----
+Reverse an existing transaction
 
-## Test Case 15 — Dashboard Verification
+Status becomes reversed and it stops contributing to active ledger totals
 
-After creating several transactions, verify:
+Recommended Evidence
 
-* Today's sales
-* Total sales
-* Amount received
-* Outstanding amount
-* Customer count
-* Recent transactions
+Capture screenshots/screen recordings of:
 
-All values should correspond to the ledger.
+Home voice recording
 
----
+AI transaction preview
 
-## Test Case 16 — Reminder
+Confirm & Save
 
-Create an eligible outstanding customer.
+Multiple-item transaction in Recent Transactions
 
-Trigger the reminder functionality.
+Dashboard metrics and Recent Activity
 
-### Expected behavior
+Customer update and clear-outstanding control
 
-The system should:
+Dashboard after settlement
 
-1. Identify the outstanding customer.
-2. Create/send the reminder through the configured provider.
-3. Record reminder status.
-4. Display the reminder result.
+Customer deletion after settlement
 
----
+Reminder candidate and reminder result
 
-# Evaluation Checklist
+GitHub repository structure
 
-| Area                 | Verified |
-| -------------------- | -------- |
-| Voice input          | Y        |
-| Speech transcription | Y        |
-| Hindi                | Y        |
-| Marathi              | Y        |
-| English              | Y        |
-| Hinglish             | Y        |
-| AI extraction        | Y        |
-| Human confirmation   | Y        |
-| Ledger save          | Y        |
-| Partial payment      | Y        |
-| Full payment         | Y        |
-| Outstanding balance  | Y        |
-| Customer management  | Y        |
-| Dashboard            | Y        |
-| Business query       | Y        |
-| Reminder             | Y        |
-| Error handling       | Y        |
+Render live deployment
+
+PS01-Specific Tests Still Needed
+
+The official PS01 also names:
+
+real-time text query filters
+
+low-stock reminders
+
+Those features are not evidenced in the current codebase, so add dedicated tests only after implementing them. fileciteturn10file0L94-L104
