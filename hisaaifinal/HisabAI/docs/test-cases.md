@@ -1,6 +1,6 @@
 HisabAI — Evaluator Test Cases
 
-The official challenge asks participants to test realistic and complex sample data and document the cases in the GitHub README. fileciteturn10file0L70-L78
+The official challenge asks participants to test realistic and complex sample data and document the cases in the GitHub README. 
 
 ID
 
@@ -228,4 +228,4 @@ real-time text query filters
 
 low-stock reminders
 
-Those features are not evidenced in the current codebase, so add dedicated tests only after implementing them. fileciteturn10file0L94-L104
+Those features are not evidenced in the current codebase, so add dedicated tests only after implementing them. 
