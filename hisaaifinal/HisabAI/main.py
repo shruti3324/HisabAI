@@ -2764,12 +2764,18 @@ def setup_page(
         prepared_scripts.append(script)
 
     async def execute_page_scripts(client=None):
-        """Execute page JS after the browser DOM/WebSocket is ready."""
+        """Execute page JS after the browser DOM/WebSocket is ready without waiting for a JS result.
+
+        These page scripts perform DOM updates and start fetch/event listeners; they do not
+        return a value to Python. Using NiceGUI's default respond=True makes the server wait
+        for a JavaScript response and can hit the default 1-second timeout while the browser
+        is still executing async code.
+        """
         for script in prepared_scripts:
             if client is not None:
-                await client.run_javascript(script)
+                await client.run_javascript(script, respond=False)
             else:
-                await ui.run_javascript(script)
+                await ui.run_javascript(script, respond=False)
 
     if prepared_scripts:
         ui.context.client.on_connect(execute_page_scripts)
