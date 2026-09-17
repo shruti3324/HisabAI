@@ -33,7 +33,7 @@ HisabAI addresses this problem by allowing vendors to maintain their ledger thro
 
 ---
 
-## 💡 Solution
+##  Solution
 
 HisabAI provides an end-to-end voice-based bookkeeping workflow:
 
@@ -199,7 +199,7 @@ The system maps supported questions to predefined database operations instead of
 
 ---
 
-## 🧠 AI Architecture
+## AI Architecture
 
 ```text
 ┌──────────────────────────────┐
