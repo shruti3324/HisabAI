@@ -2718,13 +2718,11 @@ def reminders_html():
 def setup_page(
     html: str,
 ):
-    """Render raw HTML first, then execute its JavaScript after the client connects.
+    """Render raw HTML first and run page JavaScript after the client connects.
 
-    The page HTML contains normal DOM elements such as buttons and containers.
-    Executing page scripts through ``ui.run_javascript`` makes NiceGUI send the
-    script only after the browser client is connected and after the page HTML is
-    available. This prevents startup races where functions run against missing
-    DOM elements (which was causing Home and Reminders to appear blank/inactive).
+    The raw HTML is part of the initial NiceGUI response. Page JavaScript is
+    registered with the current client's on_connect hook so it runs only after
+    the browser has received the DOM and established the NiceGUI WebSocket.
     """
     scripts = re.findall(
         r"<script(?:\s[^>]*)?>(.*?)</script>",
@@ -2738,18 +2736,11 @@ def setup_page(
         flags=re.IGNORECASE | re.DOTALL,
     )
 
-    # CSS and shared theme helpers can be loaded in the document head.
     ui.add_head_html(APP_CSS)
     ui.add_head_html(THEME_SCRIPT)
-
-    # Important: add the page DOM BEFORE scheduling page JavaScript.
     ui.add_body_html(body_html)
 
-    # NiceGUI executes these snippets through the browser client. Function
-    # declarations inside that execution context are not guaranteed to be
-    # available to HTML inline onclick handlers. Explicitly publish every
-    # page-level function on window so buttons and dynamically-created buttons
-    # can always call them.
+    prepared_scripts = []
     for script in scripts:
         if not script.strip():
             continue
@@ -2770,12 +2761,22 @@ def setup_page(
         if expose:
             script = script + "\n\n" + expose
 
-        ui.run_javascript(script)
+        prepared_scripts.append(script)
+
+    async def execute_page_scripts(client=None):
+        """Execute page JS after the browser DOM/WebSocket is ready."""
+        for script in prepared_scripts:
+            if client is not None:
+                await client.run_javascript(script)
+            else:
+                await ui.run_javascript(script)
+
+    if prepared_scripts:
+        ui.context.client.on_connect(execute_page_scripts)
 
 
 @ui.page("/")
 def home_page():
-
     setup_page(
         home_html().replace(
             "__NAV__",
@@ -2786,7 +2787,6 @@ def home_page():
 
 @ui.page("/dashboard")
 def dashboard_page():
-
     setup_page(
         dashboard_html().replace(
             "__NAV__",
@@ -2797,7 +2797,6 @@ def dashboard_page():
 
 @ui.page("/customers")
 def customers_page():
-
     setup_page(
         customers_html().replace(
             "__NAV__",
@@ -2808,7 +2807,6 @@ def customers_page():
 
 @ui.page("/reminders")
 def reminders_page():
-
     setup_page(
         reminders_html().replace(
             "__NAV__",
