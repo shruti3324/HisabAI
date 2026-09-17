@@ -2232,65 +2232,390 @@ def home_html():
     return """
     <div class="app"><div class="container">__NAV__
         <h1>Good business starts with clear hisab.</h1><div class="subtitle">Speak your transaction. AI prepares the ledger.</div>
-        <div class="card voice-card" style="margin-top:24px;"><button id="voiceButton" type="button" class="voice-button" data-home-action="voice">🎙️</button><div id="voiceStatus" class="voice-status">Tap to speak</div><div class="voice-help">Hindi • Marathi • English • Hinglish</div><div id="voiceResult" style="margin-top:25px;"></div></div>
-        <div class="card manual-card"><div class="section-title">Manual Entry</div><div class="subtitle" style="margin-bottom:14px;">Add a transaction without voice.</div><div class="form-grid"><input id="manualCustomer" class="input" placeholder="Customer name"><textarea id="manualItems" class="input" rows="3" placeholder="Items (one per line or comma separated)"></textarea><input id="manualTotal" class="input" type="number" min="0" step="0.01" placeholder="Total amount (₹)"><input id="manualPaid" class="input" type="number" min="0" step="0.01" placeholder="Paid amount (₹)"><input id="manualPhone" class="input" type="tel" placeholder="Phone (optional)"><input id="manualDueDate" class="input" type="date" title="Due date (optional)"></div><button class="primary-btn" style="margin-top:15px;" data-home-action="save">✓ Save Transaction</button><div id="manualResult" style="margin-top:12px;"></div></div>
-        <div class="section"><div class="section-title" style="display:flex;justify-content:space-between;align-items:center;"><span>Recent Transactions</span><span id="pageInfo" class="badge">Page 1</span></div><div class="card"><div style="overflow-x:auto;"><table class="table"><thead><tr><th>Customer</th><th>Items</th><th>Total</th><th>Paid</th><th>Outstanding</th></tr></thead><tbody id="transactionsBody"></tbody></table></div><div class="pagination"><button id="prevPage" class="secondary-btn" data-home-action="prev">← Previous</button><button id="nextPage" class="secondary-btn" data-home-action="next">Next →</button></div></div></div>
+        <div class="card voice-card" style="margin-top:24px;">
+            <button id="voiceButton" type="button" class="voice-button" data-home-action="voice">🎙️</button>
+            <div id="voiceStatus" class="voice-status">Tap to speak</div>
+            <div class="voice-help">Hindi • Marathi • English • Hinglish</div>
+            <div id="voiceResult" style="margin-top:25px;"></div>
+        </div>
+        <div class="card manual-card">
+            <div class="section-title">Manual Entry</div>
+            <div class="subtitle" style="margin-bottom:14px;">Add a transaction without voice.</div>
+            <div class="form-grid">
+                <input id="manualCustomer" class="input" placeholder="Customer name">
+                <textarea id="manualItems" class="input" rows="3" placeholder="Items (one per line or comma separated)"></textarea>
+                <input id="manualTotal" class="input" type="number" min="0" step="0.01" placeholder="Total amount (₹)">
+                <input id="manualPaid" class="input" type="number" min="0" step="0.01" placeholder="Paid amount (₹)">
+                <input id="manualPhone" class="input" type="tel" placeholder="Phone (optional)">
+                <input id="manualDueDate" class="input" type="date" title="Due date (optional)">
+            </div>
+            <button id="saveTransactionButton" class="primary-btn" style="margin-top:15px;" type="button" data-home-action="save">✓ Save Transaction</button>
+            <div id="manualResult" style="margin-top:12px;"></div>
+        </div>
+        <div class="section">
+            <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>Recent Transactions</span><span id="pageInfo" class="badge">Page 1</span>
+            </div>
+            <div class="card">
+                <div style="overflow-x:auto;">
+                    <table class="table">
+                        <thead><tr><th>Customer</th><th>Items</th><th>Total</th><th>Paid</th><th>Outstanding</th></tr></thead>
+                        <tbody id="transactionsBody"></tbody>
+                    </table>
+                </div>
+                <div class="pagination">
+                    <button id="prevPage" class="secondary-btn" type="button" data-home-action="prev">← Previous</button>
+                    <button id="nextPage" class="secondary-btn" type="button" data-home-action="next">Next →</button>
+                </div>
+            </div>
+        </div>
     </div></div>
-    <script>
-    let allTransactions=[],currentPage=1;const pageSize=5;
-    function formatItems(items,fallback){
-        let values=[];
-        if(Array.isArray(items)){
-            values=items;
-        }else if(items!==undefined&&items!==null&&String(items).trim()){
-            try{const parsed=JSON.parse(String(items));values=Array.isArray(parsed)?parsed:[parsed];}
-            catch(e){values=String(items).split(/[,\n]+/);}
-        }else if(fallback){
-            values=String(fallback).split(/[,\n]+/);
-        }
-        values=values.map(v=>String(v).trim()).filter(Boolean);
-        if(!values.length)return '—';
-        return '<ul style="margin:0;padding-left:18px">'+values.map(v=>'<li>'+escapeHtml(v)+'</li>').join('')+'</ul>';
-    }
-    function escapeHtml(v){return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');}
-    function renderTransactions(){const b=document.getElementById('transactionsBody'),pages=Math.max(1,Math.ceil(allTransactions.length/pageSize));currentPage=Math.min(currentPage,pages);const rows=allTransactions.slice((currentPage-1)*pageSize,currentPage*pageSize);b.innerHTML=rows.map(t=>`<tr><td>${escapeHtml(t.customer||'-')}</td><td>${formatItems(t.items,t.item)}</td><td>₹${Number(t.total_amount||0).toLocaleString('en-IN')}</td><td>₹${Number(t.paid_amount||0).toLocaleString('en-IN')}</td><td>₹${Number(t.outstanding_amount||0).toLocaleString('en-IN')}</td></tr>`).join('');if(!b.innerHTML)b.innerHTML='<tr><td colspan="5" class="empty">No transactions yet.</td></tr>';document.getElementById('pageInfo').textContent=`Page ${currentPage} of ${pages}`;document.getElementById('prevPage').disabled=currentPage<=1;document.getElementById('nextPage').disabled=currentPage>=pages;}
-    function changePage(d){currentPage+=d;renderTransactions();}
-    async function loadHome(){try{const r=await fetch('/api/transactions');const d=await r.json();if(!d.success)throw new Error(d.error||'Could not load transactions.');allTransactions=d.transactions||[];renderTransactions();}catch(e){document.getElementById('transactionsBody').innerHTML=`<tr><td colspan="5" class="status-error">${escapeHtml(e.message)}</td></tr>`;}}
-    async function saveManualEntry(){const result=document.getElementById('manualResult'),customer=document.getElementById('manualCustomer').value.trim(),itemsText=document.getElementById('manualItems').value.trim(),items=itemsText.split(/[,\n]+/).map(x=>x.trim()).filter(Boolean),total=Number(document.getElementById('manualTotal').value||0),paid=Number(document.getElementById('manualPaid').value||0),phone=document.getElementById('manualPhone').value.trim(),dueDate=document.getElementById('manualDueDate').value||null;if(!customer){result.innerHTML='<div class="status-error">Customer name is required.</div>';return;}if(total<=0){result.innerHTML='<div class="status-error">Enter a valid total amount.</div>';return;}if(paid<0||paid>total){result.innerHTML='<div class="status-error">Paid amount must be between ₹0 and the total.</div>';return;}try{const r=await fetch('/api/transactions/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer,phone:phone||null,item:items[0]||null,items:items,transaction_type:'sale',total_amount:total,paid_amount:paid,due_date:dueDate,payment_status:paid>=total?'paid':(paid>0?'partial':'pending')})});const d=await r.json();if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Could not save transaction.');result.innerHTML='<div class="status-ok">✓ Transaction saved successfully.</div>';['manualCustomer','manualItems','manualTotal','manualPaid','manualPhone','manualDueDate'].forEach(id=>document.getElementById(id).value='');currentPage=1;await loadHome();}catch(e){result.innerHTML=`<div class="status-error">${escapeHtml(e.message)}</div>`;}}
-    let mediaRecorder=null,audioChunks=[],recording=false,voiceTimeout=null;
-    window.startVoice=async function startVoice(){const btn=document.getElementById('voiceButton'),status=document.getElementById('voiceStatus');if(recording){stopRecording();return;}if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){status.textContent='Your browser does not support microphone recording.';return;}try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});audioChunks=[];let mt='';if(MediaRecorder.isTypeSupported('audio/webm;codecs=opus'))mt='audio/webm;codecs=opus';else if(MediaRecorder.isTypeSupported('audio/webm'))mt='audio/webm';mediaRecorder=mt?new MediaRecorder(stream,{mimeType:mt}):new MediaRecorder(stream);mediaRecorder.ondataavailable=e=>{if(e.data&&e.data.size>0)audioChunks.push(e.data)};mediaRecorder.onstop=async()=>{stream.getTracks().forEach(t=>t.stop());const blob=new Blob(audioChunks,{type:mt||'audio/webm'});if(blob.size<1000){status.textContent='No voice captured. Please speak clearly and try again.';return;}await uploadVoice(blob)};mediaRecorder.start(250);recording=true;btn.textContent='⏹️';btn.classList.add('recording');status.textContent='Listening... Speak now';voiceTimeout=setTimeout(()=>{if(recording)stopRecording()},10000);}catch(e){console.error(e);status.textContent='Microphone permission is required.';}}
-    function stopRecording(){if(voiceTimeout)clearTimeout(voiceTimeout);if(mediaRecorder&&recording){recording=false;mediaRecorder.stop()}const b=document.getElementById('voiceButton');if(b){b.textContent='🎙️';b.classList.remove('recording')}}
-    let pendingVoiceTransaction=null;
-    async function uploadVoice(blob){const status=document.getElementById('voiceStatus'),box=document.getElementById('voiceResult');status.textContent='Processing with AI...';try{const f=new FormData();f.append('file',blob,'voice.webm');const r=await fetch('/api/process_voice_note',{method:'POST',body:f});const text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error(text||'Server returned invalid response.')}if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Voice processing failed.');const t=d.transaction||d;pendingVoiceTransaction=t;box.innerHTML=`<div class="card" style="text-align:left;"><div class="section-title">AI Transaction Preview</div><p><b>Customer:</b> ${escapeHtml(t.customer_name||t.customer||'-')}</p><p><b>Items:</b> ${formatItems(t.items,t.item)}</p><p><b>Total:</b> ₹${Number(t.total_amount||0).toLocaleString('en-IN')}</p><p><b>Paid:</b> ₹${Number(t.paid_amount||0).toLocaleString('en-IN')}</p><p><b>Outstanding:</b> ₹${Number(t.outstanding_amount||0).toLocaleString('en-IN')}</p><input id="voicePhone" class="input" style="margin-top:7px;" placeholder="Customer phone (optional)" type="tel"><button id="voiceConfirmButton" data-home-action="confirm-voice" class="primary-btn" style="margin-top:15px;">✓ Confirm & Save</button></div>`;status.textContent='AI understood your transaction';}catch(e){console.error(e);status.textContent='Voice processing failed';box.innerHTML=`<div class="card"><div class="status-error">${escapeHtml(e.message)}</div></div>`;}}
-    function parseItemsClient(value){return value?String(value).split(/[,\n]+/).map(x=>x.trim()).filter(Boolean):[];}
-    async function confirmVoiceTransaction(t){try{const pi=document.getElementById('voicePhone'),phone=pi?pi.value.trim():'';const r=await fetch('/api/transactions/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer:t.customer_name||t.customer||'',phone:phone||null,item:(Array.isArray(t.items)&&t.items.length?t.items[0]:(t.item||null)),items:(Array.isArray(t.items)?t.items:parseItemsClient(t.item)),transaction_type:t.intent||'sale',total_amount:Number(t.total_amount||0),paid_amount:Number(t.paid_amount||0),payment_method:t.payment_method||null,due_date:t.due_date||null,payment_status:t.payment_status||null,detected_language:t.language||t.detected_language||null,confidence:Number(t.confidence||0),raw_transcript:t.transcript||t.raw_transcript||null})});const d=await r.json();if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Could not save transaction.');document.getElementById('voiceStatus').textContent='Transaction saved ✓';document.getElementById('voiceResult').innerHTML='<div class="status-ok">✓ Transaction saved successfully.</div>';currentPage=1;await loadHome();}catch(e){document.getElementById('voiceStatus').textContent=e.message;}}
-    document.addEventListener('click', function(event){
-        const button=event.target.closest('[data-home-action]');
-        if(!button)return;
-        const action=button.dataset.homeAction;
-        event.preventDefault();
-        if(action==='voice'){
-            if(window.startVoice) window.startVoice();
-        }else if(action==='save'){
-            saveManualEntry();
-        }else if(action==='prev'){
-            changePage(-1);
-        }else if(action==='next'){
-            changePage(1);
-        }else if(action==='confirm-voice'){
-            if(pendingVoiceTransaction) confirmVoiceTransaction(pendingVoiceTransaction);
-        }
-    });
+    """
 
-    function initializeHome(){
-        if(!document.getElementById('transactionsBody')){
-            setTimeout(initializeHome,100);
+
+# ============================================================
+# HOME PAGE SCRIPT
+# ============================================================
+
+HOME_SCRIPT = r"""
+<script>
+(() => {
+    if (window.__hisabaiHomeScriptLoaded) return;
+    window.__hisabaiHomeScriptLoaded = true;
+
+    const state = {
+        transactions: [],
+        page: 1,
+        pageSize: 5,
+        recorder: null,
+        chunks: [],
+        recording: false,
+        timeout: null,
+        pending: null,
+    };
+
+    const esc = (value) => String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
+    const itemsHtml = (items, fallback) => {
+        let values = [];
+        if (Array.isArray(items)) values = items;
+        else if (items != null && String(items).trim()) {
+            try {
+                const parsed = JSON.parse(String(items));
+                values = Array.isArray(parsed) ? parsed : [parsed];
+            } catch {
+                values = String(items).split(/[,\n]+/);
+            }
+        } else if (fallback) {
+            values = String(fallback).split(/[,\n]+/);
+        }
+        values = values.map(v => String(v).trim()).filter(Boolean);
+        return values.length
+            ? '<ul style="margin:0;padding-left:18px;">' + values.map(v => `<li>${esc(v)}</li>`).join('') + '</ul>'
+            : '—';
+    };
+
+    function byId(id) { return document.getElementById(id); }
+
+    function renderTransactions() {
+        const body = byId('transactionsBody');
+        const info = byId('pageInfo');
+        const prev = byId('prevPage');
+        const next = byId('nextPage');
+        if (!body || !info || !prev || !next) return;
+
+        const pages = Math.max(1, Math.ceil(state.transactions.length / state.pageSize));
+        state.page = Math.min(Math.max(1, state.page), pages);
+        const start = (state.page - 1) * state.pageSize;
+        const rows = state.transactions.slice(start, start + state.pageSize);
+
+        body.innerHTML = rows.map(t => `
+            <tr>
+                <td>${esc(t.customer || '-')}</td>
+                <td>${itemsHtml(t.items, t.item)}</td>
+                <td>₹${Number(t.total_amount || 0).toLocaleString('en-IN')}</td>
+                <td>₹${Number(t.paid_amount || 0).toLocaleString('en-IN')}</td>
+                <td>₹${Number(t.outstanding_amount || 0).toLocaleString('en-IN')}</td>
+            </tr>`).join('');
+
+        if (!body.innerHTML) {
+            body.innerHTML = '<tr><td colspan="5" class="empty">No transactions yet.</td></tr>';
+        }
+        info.textContent = `Page ${state.page} of ${pages}`;
+        prev.disabled = state.page <= 1;
+        next.disabled = state.page >= pages;
+    }
+
+    async function loadHome() {
+        const body = byId('transactionsBody');
+        if (!body) return;
+        try {
+            const response = await fetch('/api/transactions', { cache: 'no-store' });
+            const data = await response.json();
+            if (!response.ok || data.success === false) {
+                throw new Error(data.error || data.detail || 'Could not load transactions.');
+            }
+            state.transactions = data.transactions || [];
+            state.page = 1;
+            renderTransactions();
+        } catch (error) {
+            console.error('[HisabAI Home] loadHome:', error);
+            body.innerHTML = `<tr><td colspan="5" class="status-error">${esc(error.message)}</td></tr>`;
+        }
+    }
+
+    async function saveManualEntry() {
+        const result = byId('manualResult');
+        const customer = byId('manualCustomer')?.value.trim() || '';
+        const itemsText = byId('manualItems')?.value.trim() || '';
+        const items = itemsText.split(/[,\n]+/).map(v => v.trim()).filter(Boolean);
+        const total = Number(byId('manualTotal')?.value || 0);
+        const paid = Number(byId('manualPaid')?.value || 0);
+        const phone = byId('manualPhone')?.value.trim() || '';
+        const dueDate = byId('manualDueDate')?.value || null;
+
+        if (!result) return;
+        if (!customer) { result.innerHTML = '<div class="status-error">Customer name is required.</div>'; return; }
+        if (total <= 0) { result.innerHTML = '<div class="status-error">Enter a valid total amount.</div>'; return; }
+        if (paid < 0 || paid > total) { result.innerHTML = '<div class="status-error">Paid amount must be between ₹0 and the total.</div>'; return; }
+
+        result.innerHTML = '<div style="color:var(--muted);">Saving transaction...</div>';
+        try {
+            const response = await fetch('/api/transactions/confirm', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customer,
+                    phone: phone || null,
+                    item: items[0] || null,
+                    items,
+                    transaction_type: 'sale',
+                    total_amount: total,
+                    paid_amount: paid,
+                    due_date: dueDate,
+                    payment_status: paid >= total ? 'paid' : (paid > 0 ? 'partial' : 'pending'),
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok || data.success === false) {
+                throw new Error(data.error || data.detail || 'Could not save transaction.');
+            }
+            result.innerHTML = '<div class="status-ok">✓ Transaction saved successfully.</div>';
+            ['manualCustomer','manualItems','manualTotal','manualPaid','manualPhone','manualDueDate']
+                .forEach(id => { const el = byId(id); if (el) el.value = ''; });
+            state.page = 1;
+            await loadHome();
+        } catch (error) {
+            console.error('[HisabAI Home] saveManualEntry:', error);
+            result.innerHTML = `<div class="status-error">${esc(error.message)}</div>`;
+        }
+    }
+
+    function stopRecording() {
+        if (state.timeout) {
+            clearTimeout(state.timeout);
+            state.timeout = null;
+        }
+        if (state.recorder && state.recording) {
+            state.recording = false;
+            try { state.recorder.stop(); } catch {}
+        }
+        const button = byId('voiceButton');
+        if (button) {
+            button.textContent = '🎙️';
+            button.classList.remove('recording');
+        }
+    }
+
+    async function uploadVoice(blob) {
+        const status = byId('voiceStatus');
+        const box = byId('voiceResult');
+        if (!status || !box) return;
+        status.textContent = 'Processing with AI...';
+
+        try {
+            const form = new FormData();
+            form.append('file', blob, 'voice.webm');
+            const response = await fetch('/api/process_voice_note', { method: 'POST', body: form });
+            const text = await response.text();
+            let data;
+            try { data = JSON.parse(text); }
+            catch { throw new Error(text || 'Server returned an invalid response.'); }
+            if (!response.ok || data.success === false) {
+                throw new Error(data.error || data.detail || 'Voice processing failed.');
+            }
+
+            const transaction = data.transaction || data;
+            state.pending = transaction;
+            box.innerHTML = `
+                <div class="card" style="text-align:left;">
+                    <div class="section-title">AI Transaction Preview</div>
+                    <p><b>Customer:</b> ${esc(transaction.customer_name || transaction.customer || '-')}</p>
+                    <p><b>Items:</b> ${itemsHtml(transaction.items, transaction.item)}</p>
+                    <p><b>Total:</b> ₹${Number(transaction.total_amount || 0).toLocaleString('en-IN')}</p>
+                    <p><b>Paid:</b> ₹${Number(transaction.paid_amount || 0).toLocaleString('en-IN')}</p>
+                    <p><b>Outstanding:</b> ₹${Number(transaction.outstanding_amount || 0).toLocaleString('en-IN')}</p>
+                    <input id="voicePhone" class="input" style="margin-top:7px;" placeholder="Customer phone (optional)" type="tel">
+                    <button id="voiceConfirmButton" type="button" data-home-action="confirm-voice" class="primary-btn" style="margin-top:15px;">✓ Confirm & Save</button>
+                </div>`;
+            status.textContent = 'AI understood your transaction';
+        } catch (error) {
+            console.error('[HisabAI Home] uploadVoice:', error);
+            status.textContent = 'Voice processing failed';
+            box.innerHTML = `<div class="card"><div class="status-error">${esc(error.message)}</div></div>`;
+        }
+    }
+
+    async function startVoice() {
+        const button = byId('voiceButton');
+        const status = byId('voiceStatus');
+        if (!button || !status) return;
+        if (state.recording) { stopRecording(); return; }
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+            status.textContent = 'Microphone recording is not supported in this browser.';
             return;
         }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            state.chunks = [];
+            let mimeType = '';
+            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
+            else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+
+            state.recorder = mimeType
+                ? new MediaRecorder(stream, { mimeType })
+                : new MediaRecorder(stream);
+
+            state.recorder.ondataavailable = event => {
+                if (event.data && event.data.size > 0) state.chunks.push(event.data);
+            };
+
+            state.recorder.onstop = async () => {
+                stream.getTracks().forEach(track => track.stop());
+                const blob = new Blob(state.chunks, { type: mimeType || 'audio/webm' });
+                if (blob.size < 1000) {
+                    status.textContent = 'No voice captured. Please speak clearly and try again.';
+                    return;
+                }
+                await uploadVoice(blob);
+            };
+
+            state.recorder.start(250);
+            state.recording = true;
+            button.textContent = '⏹️';
+            button.classList.add('recording');
+            status.textContent = 'Listening... Speak now';
+            state.timeout = setTimeout(() => {
+                if (state.recording) stopRecording();
+            }, 10000);
+        } catch (error) {
+            console.error('[HisabAI Home] startVoice:', error);
+            status.textContent = 'Microphone permission is required.';
+        }
+    }
+
+    async function confirmVoiceTransaction(transaction) {
+        try {
+            const phoneInput = byId('voicePhone');
+            const items = Array.isArray(transaction.items)
+                ? transaction.items
+                : String(transaction.item || '').split(/[,\n]+/).map(v => v.trim()).filter(Boolean);
+
+            const response = await fetch('/api/transactions/confirm', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customer: transaction.customer_name || transaction.customer || '',
+                    phone: phoneInput?.value.trim() || null,
+                    item: items[0] || null,
+                    items,
+                    transaction_type: transaction.intent || 'sale',
+                    total_amount: Number(transaction.total_amount || 0),
+                    paid_amount: Number(transaction.paid_amount || 0),
+                    payment_method: transaction.payment_method || null,
+                    due_date: transaction.due_date || null,
+                    payment_status: transaction.payment_status || null,
+                    detected_language: transaction.language || transaction.detected_language || null,
+                    confidence: Number(transaction.confidence || 0),
+                    raw_transcript: transaction.transcript || transaction.raw_transcript || null,
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok || data.success === false) {
+                throw new Error(data.error || data.detail || 'Could not save transaction.');
+            }
+            byId('voiceStatus').textContent = 'Transaction saved ✓';
+            byId('voiceResult').innerHTML = '<div class="status-ok">✓ Transaction saved successfully.</div>';
+            state.pending = null;
+            await loadHome();
+        } catch (error) {
+            console.error('[HisabAI Home] confirmVoiceTransaction:', error);
+            byId('voiceStatus').textContent = error.message;
+        }
+    }
+
+    function bindHome() {
+        const voice = byId('voiceButton');
+        const save = byId('saveTransactionButton');
+        const prev = byId('prevPage');
+        const next = byId('nextPage');
+
+        if (!voice || !save || !prev || !next) {
+            console.warn('[HisabAI Home] DOM not ready; retrying.');
+            setTimeout(bindHome, 100);
+            return;
+        }
+
+        if (voice.dataset.bound === '1') return;
+        voice.dataset.bound = '1';
+        save.dataset.bound = '1';
+        prev.dataset.bound = '1';
+        next.dataset.bound = '1';
+
+        voice.addEventListener('click', startVoice);
+        save.addEventListener('click', saveManualEntry);
+        prev.addEventListener('click', () => {
+            state.page -= 1;
+            renderTransactions();
+        });
+        next.addEventListener('click', () => {
+            state.page += 1;
+            renderTransactions();
+        });
+
+        document.addEventListener('click', event => {
+            const target = event.target.closest('[data-home-action="confirm-voice"]');
+            if (target && state.pending) {
+                event.preventDefault();
+                confirmVoiceTransaction(state.pending);
+            }
+        });
+
+        console.log('[HisabAI Home] Home controls bound successfully.');
         loadHome();
     }
-    setTimeout(initializeHome,50);
-    </script>"""
+
+    function bootHome() {
+        if (!byId('voiceButton')) return;
+        bindHome();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootHome, { once: true });
+    } else {
+        setTimeout(bootHome, 0);
+    }
+    setTimeout(bootHome, 250);
+})();
+</script>
+"""
 
 
 # ============================================================
@@ -2716,17 +3041,18 @@ def reminders_html():
 
 def setup_page(
     html: str,
+    page_script: str | None = None,
 ):
-    """Render the complete raw page HTML directly.
+    """Render the raw page HTML and optionally add page-specific browser JS.
 
-    The page HTML already contains its own <script> blocks. NiceGUI supports
-    injecting those scripts through ui.add_body_html(), so there is no need to
-    extract them and send them later through client.run_javascript(). Doing so
-    avoids client-connection timing issues and the 1-second JavaScript response
-    timeout.
+    Page JavaScript is inserted directly into the page head instead of being
+    sent through client.run_javascript(), avoiding the one-second JS response
+    timeout and ensuring the Home controls bind after the DOM is available.
     """
     ui.add_head_html(APP_CSS)
     ui.add_head_html(THEME_SCRIPT)
+    if page_script:
+        ui.add_head_html(page_script)
     ui.add_body_html(html)
 
 
@@ -2736,7 +3062,8 @@ def home_page():
         home_html().replace(
             "__NAV__",
             navigation_html(),
-        )
+        ),
+        page_script=HOME_SCRIPT,
     )
 
 
