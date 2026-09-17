@@ -1,0 +1,9 @@
+fastapi
+nicegui
+sqlmodel
+openai
+uvicorn
+python-multipart
+python-dotenv
+pytest
+twilio
