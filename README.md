@@ -1,637 +1,398 @@
-# HisabAI — Voice Ledger
+HisabAI — Voice Ledger for Small Vendors
 
-### Voice → Ledger → Intelligence → Action
+Orchestrate — September 2026 · PS 01: Voice-Note Ledger for Small Vendors
 
-HisabAI is a voice-first bookkeeping application designed for small vendors and shopkeepers in India.
+Live demo: https://hisabai-4p3i.onrender.com/
 
-Instead of typing every transaction manually, a vendor can simply speak a transaction naturally in **Hindi, Marathi, English, or Hinglish**.
+1. Problem
 
-For example:
+Indian micro-vendors and shopkeepers often record sales and udhaar through memory or handwritten notebooks because conventional bookkeeping software can be time-consuming to operate.
 
-> "Ramesh ne 1500 rupaye ka maal liya, 500 diye."
+2. Solution
 
-HisabAI converts the voice into structured financial information, shows the extracted information to the user for confirmation, and then updates the running ledger.
+HisabAI is a voice-first bookkeeping web application. A shopkeeper records a transaction in Hindi, Marathi, English, or Hinglish; the application processes the audio, extracts structured financial information, presents an AI-generated transaction preview, and lets the user confirm it before saving it to the ledger.
 
----
+Core flow:
 
-## Live Demo
+Voice Note
+   ↓
+Browser Audio Recording
+   ↓
+Speech-to-Text / AI Processing
+   ↓
+Structured Transaction Extraction
+   ↓
+Customer + Items + Total + Paid + Outstanding
+   ↓
+User Confirmation
+   ↓
+Ledger Database
+   ↓
+Dashboard / Customers / Reminders
 
-**Live Application:**
-https://hisabai-4p3i.onrender.com/
+The official PS01 asks for a localized voice bookkeeping application that extracts customer, items, amount, and credit-vs-paid information and updates a running ledger. fileciteturn10file0L90-L104
 
----
+3. Current Implemented Features
 
-## Problem Statement
+Voice transaction recording from the browser microphone
 
-### PS 01 — Voice-Note Ledger for Small Vendors
+Hindi, Marathi, English and Hinglish-friendly workflow
 
-Small shops and micro-vendors often record daily sales and credit transactions using memory, notebooks, or informal voice notes.
+AI transcription and structured transaction extraction
 
-Traditional bookkeeping applications can be difficult to operate during a busy working day.
+Customer detection/creation
 
-HisabAI addresses this problem by allowing vendors to maintain their ledger through natural voice input.
+Multiple items per transaction
 
----
+Total, paid and outstanding amount calculation
 
-##  Solution
+Paid / partial / pending payment status
 
-HisabAI provides an end-to-end voice-based bookkeeping workflow:
+AI transaction preview before ledger write
 
-```text
-Vendor Voice
-     ↓
-Speech-to-Text
-     ↓
-Language Normalization
-     ↓
-AI Transaction Extraction
-     ↓
-Human Confirmation
-     ↓
-Ledger Update
-     ↓
-Dashboard / Customers / Outstanding
-     ↓
-Reminders
-```
+Manual transaction entry
 
-The AI is a core part of the transaction pipeline rather than only a chatbot or interface feature.
+Recent Transactions ledger
 
----
+Dashboard metrics and Recent Activity
 
-## Key Features
+Customer management
 
-### Voice-Based Transactions
+Customer update flow
 
-Record transactions using natural speech.
+Clear outstanding balance during customer update
 
-Example:
+Dashboard reflects settlement by increasing Received and reducing Outstanding
 
-> "Ramesh ne 1500 rupaye ka maal liya, 500 diye."
+Safe deletion protection for customers with active outstanding transactions
 
-The system extracts:
+Settled transaction history remains available in the dashboard after customer deletion
 
-* Customer
-* Transaction amount
-* Paid amount
-* Outstanding amount
-* Transaction type
-* Relevant transaction information
+Consent-aware payment reminders
 
----
+Reminder candidate generation
 
-### Multilingual Input
+Reminder scheduling/history endpoints
 
-The application supports:
+Twilio voice reminder integration
 
-* English
-* Hindi
-* Marathi
-* Hinglish
-* Hindi/English code-switching
-* Marathi/English code-switching
+Transparent handling of Twilio trial-account restrictions
 
-The original speech/transcript is preserved while normalization helps the AI understand different ways of expressing amounts and transactions.
+Dark / light theme
 
----
+Render deployment
 
-### AI-Powered Extraction
+4. Technology Stack
 
-The system uses AI to convert unstructured speech into structured financial information.
+Python
 
-The AI pipeline includes:
+FastAPI
 
-1. Speech transcription
-2. Language detection
-3. Multilingual normalization
-4. Transaction extraction
-5. Structured validation
-6. Human confirmation
+NiceGUI
 
-The AI does not directly write financial records without user confirmation.
+SQLModel / SQLAlchemy
 
----
+SQLite by default
 
-### Human Confirmation
+Groq through an OpenAI-compatible SDK configuration
 
-Before a transaction is saved, the extracted information is presented to the user.
+Browser MediaRecorder API
 
-The vendor can review the:
+Twilio
 
-* Customer
-* Amount
-* Paid amount
-* Transaction type
-* Outstanding amount
+Uvicorn
 
-The user must confirm the transaction before it becomes part of the ledger.
+Render
 
----
+5. Repository Structure
 
-### Udhaar / Outstanding Tracking
-
-HisabAI calculates outstanding balances from ledger transactions.
-
-Example:
-
-```text
-Total Sale:       ₹1500
-Paid:              ₹500
-Outstanding:      ₹1000
-```
-
-Partial payments can update the outstanding balance.
-
----
-
-### Customer Management
-
-The application maintains customer records and tracks their transactions.
-
-Features include:
-
-* Customer search
-* Customer details
-* Transaction history
-* Outstanding amount
-* Reminder information
-
----
-
-### Dashboard
-
-The dashboard provides a quick overview of:
-
-* Today's sales
-* Total sales
-* Amount received
-* Outstanding amount
-* Customer count
-* Recent transactions
-* Recent customers
-
----
-
-### Payment Reminders
-
-HisabAI provides reminder functionality for outstanding payments.
-
-The reminder layer tracks:
-
-* Reminder status
-* Scheduled reminders
-* Reminder attempts
-* Provider call information
-* Promise-to-pay information
-* Reminder history
-
----
-
-### Natural-Language Business Queries
-
-The application can answer supported business questions using ledger data.
-
-Example:
-
-> "Who owes me more than 500?"
-
-The system maps supported questions to predefined database operations instead of executing model-generated SQL.
-
----
-
-## AI Architecture
-
-```text
-┌──────────────────────────────┐
-│       Vendor Voice Note      │
-│ Hindi / Marathi / English    │
-│ Hinglish / Code-Switching    │
-└──────────────┬───────────────┘
-               │
-               ▼
-┌──────────────────────────────┐
-│        Groq Whisper          │
-│       Speech-to-Text         │
-└──────────────┬───────────────┘
-               │
-               ▼
-┌──────────────────────────────┐
-│   Language Normalization     │
-│ Amounts / Numbers / Phrases  │
-└──────────────┬───────────────┘
-               │
-               ▼
-┌──────────────────────────────┐
-│       AI Extraction          │
-│ Customer / Amount / Paid     │
-│ Credit / Transaction Type    │
-└──────────────┬───────────────┘
-               │
-               ▼
-┌──────────────────────────────┐
-│      Human Confirmation      │
-│     Review → Edit → Save     │
-└──────────────┬───────────────┘
-               │
-               ▼
-┌──────────────────────────────┐
-│       SQLModel Database      │
-│ Transactions / Customers     │
-│ Reminders / Ledger History   │
-└──────────────┬───────────────┘
-               │
-       ┌───────┼────────┐
-       ▼       ▼        ▼
-   Dashboard Customers Reminders
-```
-
----
-
-## Technology Stack
-
-### Backend
-
-* Python
-* FastAPI
-* Uvicorn
-* SQLModel
-* SQLite
-
-### AI
-
-* Groq API
-* Whisper speech recognition
-* LLM-based transaction extraction
-
-### Frontend
-
-* NiceGUI
-* HTML
-* CSS
-* JavaScript
-
-### Communication
-
-* Twilio for reminder calls
-
-### Deployment
-
-* Render
-
----
-
-## Project Structure
-
-```text
 HisabAI/
-│
-├── main.py
-├── db.py
-├── models.py
-├── requirements.txt
-│
-├── services/
-│   ├── ai_service.py
-│   ├── language_service.py
-│   ├── reminder_service.py
-│   └── ...
-│
-├── tests/
-│   └── ...
-│
-├── docs/
-│   ├── architecture.md
-│   └── test-cases.md
-│
-└── screenshots/
-```
+└── hisaaifinal/
+    └── HisabAI/
+        ├── main.py
+        ├── models.py
+        ├── db.py
+        ├── requirements.txt
+        ├── README.md
+        ├── ARCHITECTURE.md
+        ├── TEST_CASES.md
+        ├── SUBMISSION_CHECKLIST.md
+        ├── DEMO_SCRIPT.md
+        ├── SOLUTION_SUMMARY.txt
+        ├── .env.example
+        ├── .gitignore
+        │
+        └── services/
+            ├── ai_service.py
+            ├── language_service.py
+            ├── reminder_service.py
+            └── payment_service.py
 
----
+6. Installation
 
-# Installation
+Clone
 
-## 1. Clone the repository
-
-```bash
-git clone https://github.com/shruti3324/HisabAI.git
-```
-
-Move into the application directory:
-
-```bash
+git clone <YOUR_PUBLIC_GITHUB_REPOSITORY_URL>
 cd HisabAI/hisaaifinal/HisabAI
-```
 
----
+Virtual environment
 
-## 2. Create a virtual environment
+Windows:
 
-### Windows
-
-```bash
 python -m venv .venv
-```
+.venv\Scripts\activate
 
-```bash
-.\.venv\Scripts\Activate.ps1
-```
+macOS/Linux:
 
-### macOS / Linux
-
-```bash
 python3 -m venv .venv
-```
-
-```bash
 source .venv/bin/activate
-```
 
----
+Dependencies
 
-## 3. Install dependencies
-
-```bash
 pip install -r requirements.txt
-```
 
----
+Environment
 
-# Environment Variables
+Copy .env.example to .env and add your own credentials.
 
-Create a `.env` file in the project directory.
+GROQ_API_KEY=your_key
+TWILIO_ACCOUNT_SID=your_sid
+TWILIO_AUTH_TOKEN=your_token
+TWILIO_PHONE_NUMBER=your_number
+PUBLIC_BASE_URL=https://your-public-url.example.com
+DATABASE_URL=sqlite:///./ledger.db
 
-```env
-GROQ_API_KEY=your_groq_api_key
+Never commit real API keys or .env.
 
-TWILIO_ACCOUNT_SID=your_twilio_account_sid
-TWILIO_AUTH_TOKEN=your_twilio_auth_token
-TWILIO_PHONE_NUMBER=your_twilio_phone_number
+Run locally
 
-PUBLIC_BASE_URL=http://127.0.0.1:8080
-```
-
-Never commit the `.env` file to GitHub.
-
-Use `.env.example` as the template.
-
----
-
-# Run Locally
-
-```bash
 python main.py
-```
 
 Open:
 
-```text
-http://127.0.0.1:8080
-```
+http://127.0.0.1:8080/
 
----
+For Render, the application binds to 0.0.0.0 and uses the platform-provided $PORT.
 
-# Testing
+7. How to Use
 
-Run:
+Voice transaction
 
-```bash
-pytest -q
-```
+Open Home.
 
-The project contains tests covering important ledger and AI-related behavior.
+Click Tap to speak.
 
-Detailed evaluator test cases are documented in:
+Allow microphone access.
 
-```text
-docs/test-cases.md
-```
+Speak a transaction such as:
 
----
+Ramesh ne 500 rupaye ka maal liya, 200 diye.
 
-#  Example Voice Inputs
+Review the AI transaction preview.
 
-### English
+Confirm and save.
 
-> "Ramesh bought goods worth 1500 rupees and paid 500."
+Open Dashboard to verify the updated ledger totals.
 
-Expected:
+Expected financial interpretation for the example:
 
-```text
-Customer: Ramesh
-Total: ₹1500
-Paid: ₹500
-Outstanding: ₹1000
-```
+Total        ₹500
+Paid         ₹200
+Outstanding  ₹300
 
-### Hindi / Hinglish
+Multiple items
 
-> "Ramesh ne 1500 rupaye ka maal liya, 500 diye."
+Manual entry accepts one item per line or comma-separated items:
 
-Expected:
+Paneer
+Tomato
+Rice
 
-```text
-Customer: Ramesh
-Total: ₹1500
-Paid: ₹500
-Outstanding: ₹1000
-```
+Clear outstanding balance
 
-### Credit Transaction
+Open Customers.
 
-> "Suresh ne 800 ka saman udhaar liya."
+Open Update for a customer with outstanding udhaar.
 
-Expected:
+Tick Clear outstanding balance when I save changes.
 
-```text
-Customer: Suresh
-Total: ₹800
-Paid: ₹0
-Outstanding: ₹800
-```
+Click Save Changes.
 
----
+The remaining outstanding amount is recorded as collected, so Dashboard Received increases and Outstanding becomes ₹0.
 
-#  Realistic Evaluation Scenarios
+The customer can then be deleted when no active outstanding transaction remains.
 
-The system should be tested using:
+Reminder workflow
 
-1. Fully paid transactions
-2. Partially paid transactions
-3. Credit/udhaar transactions
-4. Multiple customers
-5. Hindi voice input
-6. Marathi voice input
-7. English voice input
-8. Hinglish voice input
-9. Multiple transactions for the same customer
-10. Full repayment of outstanding credit
-11. Natural-language business queries
-12. Unclear or incomplete voice input
+Open Customers.
 
-Detailed expected outputs are documented in:
+Add/update the phone number.
 
-```text
-docs/test-cases.md
-```
+Enable reminders and consent.
 
----
+Open Reminders.
 
-#  Safety and Data Integrity
+Click Send Reminder.
 
-HisabAI uses a human-confirmation step before saving AI-extracted financial information.
+A Twilio trial account may reject certain outbound application calls. The application reports this provider limitation rather than falsely showing the call as successful.
 
-The AI proposes structured information.
+8. API Endpoints
 
-The user decides whether the transaction should be saved.
+Health
 
-The application also avoids allowing the AI to directly generate and execute arbitrary SQL queries.
+GET /api/health
 
-This reduces the risk of an incorrect model interpretation silently becoming a financial record.
+Dashboard
 
----
+GET /api/dashboard
 
-# Transaction Flow
+Transactions
 
-```text
-1. Vendor records voice
-        ↓
-2. Audio uploaded
-        ↓
-3. Speech converted to text
-        ↓
-4. Language normalized
-        ↓
-5. AI extracts transaction
-        ↓
-6. User reviews result
-        ↓
-7. User confirms
-        ↓
-8. Transaction saved
-        ↓
-9. Customer balance updated
-        ↓
-10. Dashboard refreshed
-```
+GET  /api/transactions
+POST /api/transactions/confirm
+POST /api/transactions/{transaction_id}/reverse
 
----
+Voice processing
 
-# Screenshots
+POST /api/process_voice_note
 
-## Dashboard
+Customers
 
-![Dashboard](screenshots/dashboard.png)
+GET    /api/customers
+POST   /api/customers
+GET    /api/customers/{customer_id}
+PUT    /api/customers/{customer_id}
+DELETE /api/customers/{customer_id}
 
-## Voice Input
+Reminders
 
-![Voice Input](screenshots/voice-input.png)
+GET  /api/reminder-candidates
+POST /api/customers/{customer_id}/reminder
+POST /api/customers/{customer_id}/reminder-settings
+POST /api/customers/{customer_id}/reminders
+GET  /api/customers/{customer_id}/reminders
 
-## AI Confirmation
+Twilio callbacks
 
-![AI Confirmation](screenshots/ai-confirmation.png)
+POST /api/reminders/voice/{reminder_id}
+POST /api/reminders/voice-response/{reminder_id}
+POST /api/reminders/voice-status
 
-## Customers
+9. AI Core
 
-![Customers](screenshots/customers.png)
+AI is part of the primary transaction-entry path:
 
-## Reminders
+Recorded voice
+      ↓
+AI speech processing
+      ↓
+Transaction extraction
+      ↓
+Customer / items / amounts / language / confidence / transcript
+      ↓
+Preview for user confirmation
+      ↓
+Confirmed ledger transaction
 
-![Reminders](screenshots/reminders.png)
+Removing the AI voice-processing path removes the main low-friction transaction-entry mechanism of the product. The challenge requires AI to be functionally central rather than a cosmetic wrapper. fileciteturn10file0L61-L74
 
----
+10. Data Model
 
-#  Deployment
+Customer
+ ├─ name
+ ├─ phone
+ ├─ reminder settings
+ └─ collection memory
 
-The application is deployed using Render.
+Transaction
+ ├─ customer
+ ├─ items
+ ├─ total amount
+ ├─ paid amount
+ ├─ outstanding amount
+ ├─ payment status
+ └─ transcript
 
-Live application:
+Reminder
+ ├─ customer
+ ├─ amount
+ ├─ channel
+ ├─ status
+ ├─ provider call ID
+ └─ scheduling/history
+
+Payment
+ ├─ provider reference
+ ├─ amount
+ ├─ status
+ └─ reconciliation fields
+
+11. Testing
+
+See TEST_CASES.md. Tests cover realistic multilingual voice input, udhaar, multiple items, manual entry, customer settlement, dashboard updates, reminders, scheduling, and failure handling.
+
+The challenge explicitly asks participants to test realistic and complex sample data and document the test cases in GitHub. fileciteturn10file0L70-L78
+
+12. Deployment
+
+Current public deployment:
 
 https://hisabai-4p3i.onrender.com/
 
-Render configuration:
+Render start command:
 
-```text
-Root Directory:
-hisaaifinal/HisabAI
-
-Build Command:
-pip install -r requirements.txt
-
-Start Command:
 uvicorn main:fastapi_app --host 0.0.0.0 --port $PORT
-```
 
----
+13. PS01 Requirement Status
 
-# Current Limitations
+Implemented / demonstrated
 
-### SQLite
+Localized voice-ledger workflow
 
-The current hackathon version uses SQLite for simplicity and local/demo deployment.
+Hindi / Marathi / English voice support
 
-For a production multi-user system, a persistent managed database such as PostgreSQL would be more appropriate.
+Speech-to-text / AI processing
 
-### Reminder Scheduler
+Customer extraction
 
-The current reminder scheduler runs with the application process.
+Item extraction
 
-A production implementation would use a dedicated background job system.
+Transaction amount extraction
 
-### Authentication
+Paid / credit / outstanding calculation
 
-The current hackathon version uses a demo user context rather than a complete production authentication system.
+Running ledger/dashboard
 
----
+Multilingual workflow
 
-# Future Scope
+Multiple items
 
-Potential future improvements include:
+Collection/reminder workflow
 
-* Multi-vendor authentication
-* PostgreSQL deployment
-* Inventory and low-stock tracking
-* UPI/payment integration
-* WhatsApp reminders
-* Advanced analytics
-* Export to Excel/PDF
-* Offline voice capture
-* More Indian languages
-* Production-grade background workers
-* Role-based access control
+Not yet evidenced in the current codebase
 
----
+Real-time text query filters and low-stock reminders are explicitly named in PS01. The current repository materials do not demonstrate those features, so they should not be claimed as completed until implemented and tested. fileciteturn10file0L94-L104
 
-# Problem Statement Alignment
+14. Academic Integrity
 
-HisabAI implements PS 01 — Voice-Note Ledger for Small Vendors.
+The challenge prohibits copying, cloning, or closely mimicking public projects and states that final code logic, interface integration, and documentation must represent the participant's original work. fileciteturn10file0L75-L84
 
-The solution provides:
+15. Submission
 
-* Voice-based transaction capture
-* Hindi / Marathi / English support
-* Speech transcription
-* Structured financial extraction
-* Customer identification
-* Sales tracking
-* Credit/udhaar tracking
-* Outstanding balance calculation
-* Running ledger
-* Business queries
-* Reminder functionality
-* Human confirmation before saving
+The official submission requires a public GitHub repository with complete source code, a detailed README, and a 3–4 line solution summary submitted through the designated Google Form. The demo video is optional but encouraged. fileciteturn10file0L43-L52
 
----
+See:
 
-#  Author
+SUBMISSION_CHECKLIST.md
 
-**Shruti Pardeshi**
+DEMO_SCRIPT.md
 
-GitHub:
+SOLUTION_SUMMARY.txt
 
-https://github.com/shruti3324
+Author
 
----
+Shruti Pardeshi
 
-## License
+Project: HisabAI — Voice Ledger
 
-This project was developed as an individual project for the Orchestrate — September 2026 AI Build Challenge.
+Problem Statement: PS 01 — Voice-Note Ledger for Small Vendors
