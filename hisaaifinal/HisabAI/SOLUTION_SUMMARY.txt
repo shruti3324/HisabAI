@@ -1,0 +1,274 @@
+# HISABAI
+
+SPEAK. TRACK. COLLECT.
+
+## PROJECT OVERVIEW
+
+HisabAI is a voice-first digital ledger designed for small vendors
+and shopkeepers.
+
+It allows vendors to record business transactions using natural voice
+input and manage their customers, sales, received payments, outstanding
+udhaar, and payment reminders from a single application.
+
+The system is designed around a simple workflow:
+
+SPEAK → TRACK → COLLECT
+
+## PROBLEM
+
+Small vendors frequently need to manage:
+
+* Customer transactions
+* Daily sales
+* Payments received
+* Outstanding udhaar
+* Customer information
+* Payment follow-ups
+
+Traditional manual record keeping can require repeated writing,
+manual calculations, and remembering customer balances.
+
+HisabAI provides a digital alternative that is centered around
+natural voice interaction.
+
+## SOLUTION
+
+HisabAI allows a vendor to speak a transaction instead of manually
+entering all the information.
+
+The AI prepares the transaction as a structured ledger entry.
+
+The vendor can then save the transaction and manage the resulting
+business information through the application.
+
+## CORE WORKFLOW
+
+Voice Transaction
+↓
+AI Prepares Ledger
+↓
+Save Transaction
+↓
+Customer / Ledger Data
+↓
+Dashboard
+↓
+Outstanding Tracking
+↓
+Payment Reminder Workflow
+
+## KEY FEATURES
+
+1. VOICE-FIRST TRANSACTION ENTRY
+
+The vendor can use the "Tap to speak" feature to provide a transaction
+using natural speech.
+
+2. MULTILINGUAL INTERACTION
+
+The application is designed to support:
+
+* Hindi
+* Marathi
+* English
+* Hinglish
+
+3. MANUAL TRANSACTION ENTRY
+
+Users can also add a transaction manually when they do not want to
+use voice input.
+
+4. DIGITAL TRANSACTION LEDGER
+
+Saved transactions contain business information such as:
+
+* Customer
+* Items
+* Total
+* Paid
+* Outstanding
+
+5. BUSINESS DASHBOARD
+
+The dashboard provides a clear view of:
+
+* Today's Sales
+* Received
+* Outstanding
+* Customers
+* Recent Activity
+
+6. CUSTOMER MANAGEMENT
+
+The Customers section allows vendors to:
+
+* Add customers
+* Update customers
+* Delete customers
+* View outstanding balances
+* Manage reminder-related settings
+
+7. PAYMENT REMINDERS
+
+HisabAI includes an AI-powered, consent-aware payment reminder
+workflow.
+
+Customers with outstanding payments can be enabled for reminders
+after the required consent is provided.
+
+8. DARK / LIGHT MODE
+
+The application provides both Dark and Light interface modes.
+
+## CURRENT APPLICATION SECTIONS
+
+## HOME
+
+The Home page provides:
+
+* Voice transaction entry
+* Manual Entry
+* Save Transaction
+* Recent Transactions
+
+## DASHBOARD
+
+The Dashboard provides:
+
+* Today's Sales
+* Received
+* Outstanding
+* Customer count
+* Recent Activity
+
+## CUSTOMERS
+
+The Customers page provides:
+
+* Add Customer
+* Customer records
+* Outstanding amount
+* Update
+* Delete
+
+## REMINDERS
+
+The Reminders page provides:
+
+* Payment reminder management
+* Consent-aware reminder workflow
+* Status of customers requiring reminders
+
+## EXAMPLE TRANSACTION
+
+A vendor can provide a transaction through voice.
+
+Example:
+
+"Riya ne 200 rupaye ka rice aur tomato liya aur 200 rupaye diye."
+
+HisabAI prepares the transaction so that the vendor can save it into
+the ledger.
+
+## BUSINESS DASHBOARD EXAMPLE
+
+After transactions are recorded, the dashboard can show metrics such
+as:
+
+Today's Sales
+Received
+Outstanding
+Customers
+
+Recent Activity provides a quick view of recent customer transactions.
+
+## TARGET USERS
+
+HisabAI is intended for:
+
+* Small shop owners
+* Local vendors
+* Small businesses
+* Vendors who maintain customer credit
+* Businesses that need simple transaction tracking
+
+## KEY VALUE
+
+The key idea behind HisabAI is to make digital bookkeeping closer to
+the way vendors naturally communicate.
+
+Instead of requiring a vendor to learn complicated accounting
+software, the system starts with a familiar interaction:
+
+SPEAK.
+
+## TECHNOLOGY
+
+The project uses a Python-based backend and AI-powered processing.
+
+Major technologies include:
+
+* Python
+* FastAPI
+* NiceGUI
+* SQLModel
+* AI-powered speech and language processing
+* REST APIs
+
+## DESIGN PRINCIPLE
+
+The product is built around three simple actions:
+
+SPEAK
+Record a transaction naturally.
+
+TRACK
+Monitor sales, customers, payments, and outstanding udhaar.
+
+COLLECT
+Manage payment reminders for customers with outstanding balances
+through a consent-aware workflow.
+
+## PROJECT VISION
+
+The vision of HisabAI is to make business record keeping accessible
+and simple for small vendors.
+
+The current application focuses on:
+
+Voice transaction entry
+Digital ledger
+Customer management
+Business dashboard
+Outstanding tracking
+Payment reminders
+
+## LIVE APPLICATION
+
+https://hisabai-4p3i.onrender.com/
+
+## FINAL SUMMARY
+
+HisabAI brings voice interaction and digital bookkeeping together
+in a simple vendor-focused application.
+
+It transforms the basic process of recording a transaction into a
+connected workflow:
+
+VOICE
+↓
+TRANSACTION
+↓
+LEDGER
+↓
+DASHBOARD
+↓
+CUSTOMER TRACKING
+↓
+PAYMENT REMINDER
+
+The goal is simple:
+
+SPEAK. TRACK. COLLECT.
+======= END =======
