@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import tempfile
 from contextlib import asynccontextmanager
@@ -238,6 +239,32 @@ def normalize_phone(phone: str | None) -> str | None:
     return digits or None
 
 
+def parse_items(value: Any, fallback: Optional[str] = None) -> list[str]:
+    """Return transaction items as a clean list, supporting JSON/list/text data."""
+    if isinstance(value, list):
+        raw = value
+    elif isinstance(value, str) and value.strip():
+        text = value.strip()
+        try:
+            decoded = json.loads(text)
+            raw = decoded if isinstance(decoded, list) else [decoded]
+        except Exception:
+            raw = text.replace("\r", "\n").replace(",", "\n").split("\n")
+    elif value is not None:
+        raw = [value]
+    elif fallback:
+        raw = fallback.replace("\r", "\n").replace(",", "\n").split("\n")
+    else:
+        raw = []
+
+    result = []
+    for item in raw:
+        text = str(item).strip()
+        if text and text not in result:
+            result.append(text)
+    return result
+
+
 def transaction_to_dict(
     transaction: Transaction,
 ) -> dict:
@@ -248,6 +275,7 @@ def transaction_to_dict(
         "customer": transaction.customer,
         "transaction_type": transaction.transaction_type,
         "item": transaction.item,
+        "items": parse_items(transaction.items_json, transaction.item),
         "items_json": transaction.items_json,
         "total_amount": money(transaction.total_amount),
         "paid_amount": money(transaction.paid_amount),
@@ -624,6 +652,7 @@ class ConfirmTransactionRequest(BaseModel):
     customer: str
     phone: Optional[str] = None
     item: Optional[str] = None
+    items: Optional[list[str]] = None
     transaction_type: str = "sale"
     total_amount: float = 0
     paid_amount: float = 0
@@ -677,6 +706,9 @@ async def confirm_transaction(
             phone=payload.phone,
         )
 
+        item_list = parse_items(payload.items, payload.item)
+        item_text = ", ".join(item_list) if item_list else None
+
         transaction = Transaction(
             user_id=USER_ID,
             customer_id=customer.id,
@@ -684,7 +716,8 @@ async def confirm_transaction(
             transaction_type=(
                 payload.transaction_type or "sale"
             ),
-            item=payload.item,
+            item=item_text,
+            items_json=json.dumps(item_list, ensure_ascii=False),
             total_amount=total,
             paid_amount=paid,
             outstanding_amount=outstanding,
@@ -964,6 +997,24 @@ async def update_customer(
             "customer":
                 customer_to_dict(customer),
         }
+
+
+@fastapi_app.delete("/api/customers/{customer_id}")
+async def delete_customer(customer_id: int):
+    with get_session() as session:
+        customer = session.get(Customer, customer_id)
+        if not customer or customer.user_id != USER_ID:
+            raise HTTPException(status_code=404, detail="Customer not found.")
+        transactions = session.exec(select(Transaction).where(
+            Transaction.user_id == USER_ID,
+            Transaction.customer_id == customer_id,
+            Transaction.status == "active",
+        )).all()
+        if transactions:
+            raise HTTPException(status_code=409, detail="This customer has transactions and cannot be deleted. Update the customer instead.")
+        session.delete(customer)
+        session.commit()
+        return {"success": True, "message": "Customer deleted."}
 
 
 @fastapi_app.get(
@@ -1952,7 +2003,7 @@ h1 {
 
 /* BRIGHT THEME */
 
-body.bright {
+body.light {
     --bg: #f4f7fb;
     --panel: #ffffff;
     --panel2: #eef3f8;
@@ -1961,7 +2012,7 @@ body.bright {
     --muted: #64748b;
 }
 
-body.bright {
+body.light {
     background:
         radial-gradient(
             circle at top right,
@@ -1971,24 +2022,31 @@ body.bright {
         var(--bg);
 }
 
-body.bright .card {
+body.light .card {
     background: rgba(255,255,255,.88);
     box-shadow:
         0 15px 45px rgba(15,23,42,.08);
 }
 
-body.bright .input {
+body.light .input {
     background: white;
     color: #172033;
 }
 
-body.bright .theme-switch {
+body.light .theme-switch {
     background: rgba(15,23,42,.04);
 }
 
-body.bright .nav-link:hover {
+body.light .nav-link:hover {
     background: rgba(15,23,42,.05);
 }
+
+.pagination { display:flex; justify-content:flex-end; gap:10px; margin-top:16px; }
+.secondary-btn:disabled { opacity:.45; cursor:not-allowed; }
+.customer-row { display:flex; justify-content:space-between; align-items:center; gap:18px; margin-bottom:12px; }
+.customer-meta { color:var(--muted); margin-top:7px; font-size:13px; }
+.customer-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.manual-card { margin-top:18px; }
 
 @media(max-width: 900px) {
 
@@ -2039,10 +2097,10 @@ THEME_SCRIPT = """
             localStorage.getItem('hisabai-theme') ||
             'dark';
 
-        if (theme === 'bright') {
-            document.body.classList.add('bright');
+        if (theme === 'light') {
+            document.body.classList.add('light');
         } else {
-            document.body.classList.remove('bright');
+            document.body.classList.remove('light');
         }
 
         document
@@ -2064,10 +2122,10 @@ THEME_SCRIPT = """
             theme
         );
 
-        if (theme === 'bright') {
-            document.body.classList.add('bright');
+        if (theme === 'light') {
+            document.body.classList.add('light');
         } else {
-            document.body.classList.remove('bright');
+            document.body.classList.remove('light');
         }
 
         document
@@ -2103,63 +2161,19 @@ THEME_SCRIPT = """
 # ============================================================
 
 def navigation_html():
-
     return """
     <div class="nav">
-
-        <div class="brand">
-
-            <div class="logo">₹</div>
-
-            <div>
-                <div class="brand-title">
-                    HisabAI
-                </div>
-
-                <div class="brand-sub">
-                    Speak. Track. Collect.
-                </div>
-            </div>
-
-        </div>
-
+        <div class="brand"><div class="logo">₹</div><div><div class="brand-title">HisabAI</div><div class="brand-sub">Speak. Track. Collect.</div></div></div>
         <div class="nav-links">
-
-            <a class="nav-link"
-               href="/">
-                Dashboard
-            </a>
-
-            <a class="nav-link"
-               href="/customers">
-                Customers
-            </a>
-
-            <a class="nav-link"
-               href="/reminders">
-                Reminders
-            </a>
-
+            <a class="nav-link" href="/">Home</a>
+            <a class="nav-link" href="/dashboard">Dashboard</a>
+            <a class="nav-link" href="/customers">Customers</a>
+            <a class="nav-link" href="/reminders">Reminders</a>
             <div class="theme-switch">
-
-                <button
-                    class="theme-btn"
-                    data-theme="dark"
-                    onclick="setTheme('dark')">
-                    🌙 Dark
-                </button>
-
-                <button
-                    class="theme-btn"
-                    data-theme="bright"
-                    onclick="setTheme('bright')">
-                    ☀ Bright
-                </button>
-
+                <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')">🌙 Dark</button>
+                <button class="theme-btn" data-theme="light" onclick="setTheme('light')">☀ Light</button>
             </div>
-
         </div>
-
     </div>
     """
 
@@ -2169,834 +2183,46 @@ def navigation_html():
 # ============================================================
 
 def dashboard_html():
-
     return """
-    <div class="app">
-
-        <div class="container">
-
-            __NAV__
-
-            <h1>
-                Good business starts with clear hisab.
-            </h1>
-
-            <div class="subtitle">
-                Speak your transaction. AI prepares the ledger.
-            </div>
-
-            <div class="grid"
-                 style="margin-top:24px;">
-
-                <div class="card">
-
-                    <div class="metric-label">
-                        Today's Sales
-                    </div>
-
-                    <div id="todaySales"
-                         class="metric">
-                        ₹0
-                    </div>
-
-                </div>
-
-                <div class="card">
-
-                    <div class="metric-label">
-                        Received
-                    </div>
-
-                    <div id="received"
-                         class="metric">
-                        ₹0
-                    </div>
-
-                </div>
-
-                <div class="card">
-
-                    <div class="metric-label">
-                        Outstanding
-                    </div>
-
-                    <div id="outstanding"
-                         class="metric">
-                        ₹0
-                    </div>
-
-                </div>
-
-                <div class="card">
-
-                    <div class="metric-label">
-                        Customers
-                    </div>
-
-                    <div id="customersCount"
-                         class="metric">
-                        0
-                    </div>
-
-                </div>
-
-            </div>
-
-            <div class="card voice-card">
-
-                <button
-                    id="voiceButton"
-                    class="voice-button"
-                    onclick="startVoice()">
-                    🎙️
-                </button>
-
-                <div
-                    id="voiceStatus"
-                    class="voice-status">
-                    Tap to speak
-                </div>
-
-                <div class="voice-help">
-                    Hindi • Marathi • English • Hinglish
-                </div>
-
-                <div
-                    id="voiceResult"
-                    style="margin-top:25px;">
-                </div>
-
-            </div>
-
-            <div class="section">
-
-                <div class="section-title">
-                    Recent Transactions
-                </div>
-
-                <div class="card">
-
-                    <table class="table">
-
-                        <thead>
-
-                            <tr>
-                                <th>Customer</th>
-                                <th>Item</th>
-                                <th>Total</th>
-                                <th>Paid</th>
-                                <th>Outstanding</th>
-                            </tr>
-
-                        </thead>
-
-                        <tbody id="transactionsBody">
-                        </tbody>
-
-                    </table>
-
-                </div>
-
-            </div>
-
+    <div class="app"><div class="container">__NAV__
+        <h1>Business Dashboard</h1><div class="subtitle">A clear view of today's sales, collections and outstanding udhaar.</div>
+        <div class="grid" style="margin-top:24px;">
+            <div class="card"><div class="metric-label">Today's Sales</div><div id="dashTodaySales" class="metric">₹0</div></div>
+            <div class="card"><div class="metric-label">Received</div><div id="dashReceived" class="metric">₹0</div></div>
+            <div class="card"><div class="metric-label">Outstanding</div><div id="dashOutstanding" class="metric">₹0</div></div>
+            <div class="card"><div class="metric-label">Customers</div><div id="dashCustomers" class="metric">0</div></div>
         </div>
-
-    </div>
-
+        <div class="section"><div class="section-title">Recent Activity</div><div class="card"><div style="overflow-x:auto;"><table class="table"><thead><tr><th>Customer</th><th>Items</th><th>Total</th><th>Paid</th><th>Outstanding</th></tr></thead><tbody id="dashboardTransactions"></tbody></table></div></div></div>
+    </div></div>
     <script>
-
-    async function loadDashboard() {
-
-        try {
-
-            const response =
-                await fetch('/api/dashboard');
-
-            const data =
-                await response.json();
-
-            if (!data.success) {
-                throw new Error(
-                    data.error || 'Dashboard error'
-                );
-            }
-
-            const m = data.metrics;
-
-            document.getElementById(
-                'todaySales'
-            ).textContent =
-                '₹' + Number(
-                    m.today_sales || 0
-                ).toLocaleString('en-IN');
-
-            document.getElementById(
-                'received'
-            ).textContent =
-                '₹' + Number(
-                    m.received || 0
-                ).toLocaleString('en-IN');
-
-            document.getElementById(
-                'outstanding'
-            ).textContent =
-                '₹' + Number(
-                    m.outstanding || 0
-                ).toLocaleString('en-IN');
-
-            document.getElementById(
-                'customersCount'
-            ).textContent =
-                m.customers || 0;
-
-            const body =
-                document.getElementById(
-                    'transactionsBody'
-                );
-
-            body.innerHTML = '';
-
-            for (
-                const t
-                of data.recent_transactions || []
-            ) {
-
-                body.innerHTML += `
-                    <tr>
-
-                        <td>
-                            ${escapeHtml(
-                                t.customer || '-'
-                            )}
-                        </td>
-
-                        <td>
-                            ${escapeHtml(
-                                t.item || '-'
-                            )}
-                        </td>
-
-                        <td>
-                            ₹${Number(
-                                t.total_amount || 0
-                            ).toLocaleString('en-IN')}
-                        </td>
-
-                        <td>
-                            ₹${Number(
-                                t.paid_amount || 0
-                            ).toLocaleString('en-IN')}
-                        </td>
-
-                        <td>
-                            ₹${Number(
-                                t.outstanding_amount || 0
-                            ).toLocaleString('en-IN')}
-                        </td>
-
-                    </tr>
-                `;
-            }
-
-        } catch (error) {
-
-            console.error(
-                'Dashboard error:',
-                error
-            );
-        }
-    }
-
-
-    function escapeHtml(value) {
-
-        return String(value)
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#039;');
-
-    }
-
-
-    let mediaRecorder = null;
-    let audioChunks = [];
-    let recording = false;
-    let voiceTimeout = null;
-
-
-    async function startVoice() {
-
-        const button =
-            document.getElementById(
-                'voiceButton'
-            );
-
-        const status =
-            document.getElementById(
-                'voiceStatus'
-            );
-
-        if (recording) {
-
-            stopRecording();
-
-            return;
-        }
-
-        if (
-            !navigator.mediaDevices ||
-            !navigator.mediaDevices.getUserMedia
-        ) {
-
-            status.textContent =
-                'Your browser does not support microphone recording.';
-
-            return;
-        }
-
-        try {
-
-            const stream =
-                await navigator.mediaDevices
-                    .getUserMedia({
-                        audio: true
-                    });
-
-            audioChunks = [];
-
-            let mimeType = '';
-
-            if (
-                MediaRecorder.isTypeSupported(
-                    'audio/webm;codecs=opus'
-                )
-            ) {
-
-                mimeType =
-                    'audio/webm;codecs=opus';
-
-            } else if (
-                MediaRecorder.isTypeSupported(
-                    'audio/webm'
-                )
-            ) {
-
-                mimeType =
-                    'audio/webm';
-
-            }
-
-            mediaRecorder =
-                mimeType
-                    ? new MediaRecorder(
-                        stream,
-                        { mimeType }
-                    )
-                    : new MediaRecorder(
-                        stream
-                    );
-
-            mediaRecorder.ondataavailable =
-                event => {
-
-                    if (
-                        event.data &&
-                        event.data.size > 0
-                    ) {
-
-                        audioChunks.push(
-                            event.data
-                        );
-                    }
-                };
-
-
-            mediaRecorder.onerror =
-                event => {
-
-                    console.error(
-                        'Recorder error:',
-                        event
-                    );
-
-                    stream
-                        .getTracks()
-                        .forEach(
-                            track =>
-                                track.stop()
-                        );
-
-                    recording = false;
-
-                    button.textContent = '🎙️';
-                    button.classList.remove(
-                        'recording'
-                    );
-
-                    status.textContent =
-                        'Recording error. Please try again.';
-                };
-
-
-            mediaRecorder.onstop =
-                async () => {
-
-                    stream
-                        .getTracks()
-                        .forEach(
-                            track =>
-                                track.stop()
-                        );
-
-                    const finalType =
-                        mimeType ||
-                        'audio/webm';
-
-                    const blob =
-                        new Blob(
-                            audioChunks,
-                            {
-                                type: finalType
-                            }
-                        );
-
-                    if (blob.size < 1000) {
-
-                        status.textContent =
-                            'No voice captured. Please speak clearly and try again.';
-
-                        return;
-                    }
-
-                    await uploadVoice(
-                        blob,
-                        finalType
-                    );
-                };
-
-
-            mediaRecorder.start(
-                250
-            );
-
-            recording = true;
-
-            button.textContent = '⏹️';
-
-            button.classList.add(
-                'recording'
-            );
-
-            status.textContent =
-                'Listening... Speak now';
-
-            voiceTimeout =
-                setTimeout(
-                    () => {
-
-                        if (recording) {
-                            stopRecording();
-                        }
-
-                    },
-                    10000
-                );
-
-        } catch (error) {
-
-            console.error(
-                'Microphone error:',
-                error
-            );
-
-            status.textContent =
-                'Microphone permission required';
-
-            recording = false;
-
-            button.textContent = '🎙️';
-
-            button.classList.remove(
-                'recording'
-            );
-        }
-    }
-
-
-    function stopRecording() {
-
-        if (voiceTimeout) {
-
-            clearTimeout(
-                voiceTimeout
-            );
-
-            voiceTimeout = null;
-        }
-
-        if (
-            mediaRecorder &&
-            mediaRecorder.state !== 'inactive'
-        ) {
-
-            mediaRecorder.stop();
-        }
-
-        recording = false;
-
-        const button =
-            document.getElementById(
-                'voiceButton'
-            );
-
-        button.textContent = '🎙️';
-
-        button.classList.remove(
-            'recording'
-        );
-
-        const status =
-            document.getElementById(
-                'voiceStatus'
-            );
-
-        status.textContent =
-            'Processing with AI...';
-    }
-
-
-    async function uploadVoice(
-        blob,
-        mimeType
-    ) {
-
-        const status =
-            document.getElementById(
-                'voiceStatus'
-            );
-
-        const resultBox =
-            document.getElementById(
-                'voiceResult'
-            );
-
-        try {
-
-            const extension =
-                mimeType.includes('webm')
-                    ? 'webm'
-                    : 'webm';
-
-            const formData =
-                new FormData();
-
-            formData.append(
-                'file',
-                blob,
-                'voice.' + extension
-            );
-
-            const response =
-                await fetch(
-                    '/api/process_voice_note',
-                    {
-                        method: 'POST',
-                        body: formData
-                    }
-                );
-
-            const text =
-                await response.text();
-
-            let data;
-
-            try {
-
-                data = JSON.parse(text);
-
-            } catch {
-
-                throw new Error(
-                    text ||
-                    'Server returned invalid response.'
-                );
-            }
-
-            if (
-                !response.ok ||
-                data.success === false
-            ) {
-
-                throw new Error(
-                    data.error ||
-                    data.detail ||
-                    'Voice processing failed.'
-                );
-            }
-
-            const transaction =
-                data.transaction ||
-                data;
-
-            resultBox.innerHTML = `
-
-                <div class="card"
-                     style="text-align:left;">
-
-                    <div class="section-title">
-                        AI Transaction Preview
-                    </div>
-
-                    <p>
-                        <b>Customer:</b>
-                        ${escapeHtml(
-                            transaction.customer_name ||
-                            transaction.customer ||
-                            '-'
-                        )}
-                    </p>
-
-                    <p>
-                        <b>Item:</b>
-                        ${escapeHtml(
-                            transaction.item ||
-                            '-'
-                        )}
-                    </p>
-
-                    <p>
-                        <b>Total:</b>
-                        ₹${Number(
-                            transaction.total_amount || 0
-                        ).toLocaleString('en-IN')}
-                    </p>
-
-                    <p>
-                        <b>Paid:</b>
-                        ₹${Number(
-                            transaction.paid_amount || 0
-                        ).toLocaleString('en-IN')}
-                    </p>
-
-                    <p>
-                        <b>Outstanding:</b>
-                        ₹${Number(
-                            transaction.outstanding_amount || 0
-                        ).toLocaleString('en-IN')}
-                    </p>
-
-                    <div style="margin-top:18px;">
-
-                        <label>
-                            <b>
-                                Customer phone number
-                            </b>
-                        </label>
-
-                        <input
-                            id="voicePhone"
-                            class="input"
-                            style="margin-top:7px;"
-                            placeholder="+91 9876543210"
-                            type="tel"
-                        />
-
-                    </div>
-
-                    <button
-                        onclick='confirmVoiceTransaction(${JSON.stringify(
-                            transaction
-                        )})'
-                        class="primary-btn"
-                        style="margin-top:15px;"
-                    >
-                        ✓ Confirm & Save
-                    </button>
-
-                </div>
-            `;
-
-            status.textContent =
-                'AI understood your transaction';
-
-        } catch (error) {
-
-            console.error(error);
-
-            status.textContent =
-                'Voice processing failed';
-
-            resultBox.innerHTML = `
-
-                <div class="card">
-
-                    <div class="status-error">
-                        ${escapeHtml(
-                            error.message
-                        )}
-                    </div>
-
-                </div>
-            `;
-        }
-    }
-
-
-    async function confirmVoiceTransaction(
-        transaction
-    ) {
-
-        try {
-
-            const phoneInput =
-                document.getElementById(
-                    'voicePhone'
-                );
-
-            const phone =
-                phoneInput
-                    ? phoneInput.value.trim()
-                    : '';
-
-            const response =
-                await fetch(
-                    '/api/transactions/confirm',
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type':
-                                'application/json'
-                        },
-                        body: JSON.stringify({
-
-                            customer:
-                                transaction.customer_name ||
-                                transaction.customer ||
-                                '',
-
-                            phone:
-                                phone || null,
-
-                            item:
-                                transaction.item ||
-                                null,
-
-                            transaction_type:
-                                transaction.intent ||
-                                'sale',
-
-                            total_amount:
-                                Number(
-                                    transaction.total_amount ||
-                                    0
-                                ),
-
-                            paid_amount:
-                                Number(
-                                    transaction.paid_amount ||
-                                    0
-                                ),
-
-                            payment_method:
-                                transaction.payment_method ||
-                                null,
-
-                            due_date:
-                                transaction.due_date ||
-                                null,
-
-                            payment_status:
-                                transaction.payment_status ||
-                                null,
-
-                            detected_language:
-                                transaction.language ||
-                                transaction.detected_language ||
-                                null,
-
-                            confidence:
-                                Number(
-                                    transaction.confidence ||
-                                    0
-                                ),
-
-                            raw_transcript:
-                                transaction.transcript ||
-                                transaction.raw_transcript ||
-                                null
-                        })
-                    }
-                );
-
-            const text =
-                await response.text();
-
-            let data;
-
-            try {
-                data = JSON.parse(text);
-            } catch {
-
-                throw new Error(
-                    text ||
-                    'Invalid server response.'
-                );
-            }
-
-            if (
-                !response.ok ||
-                data.success === false
-            ) {
-
-                throw new Error(
-                    data.error ||
-                    data.detail ||
-                    'Could not save transaction.'
-                );
-            }
-
-            document.getElementById(
-                'voiceStatus'
-            ).textContent =
-                'Transaction saved ✓';
-
-            document.getElementById(
-                'voiceResult'
-            ).innerHTML = `
-
-                <div style="
-                    padding:16px;
-                    border-radius:12px;
-                    background:rgba(52,211,153,.1);
-                    color:#6ee7b7;
-                ">
-                    Transaction saved successfully.
-                    ${phone
-                        ? '<br>Phone number saved ✓'
-                        : ''}
-                </div>
-            `;
-
-            await loadDashboard();
-
-        } catch (error) {
-
-            console.error(error);
-
-            document.getElementById(
-                'voiceStatus'
-            ).textContent =
-                error.message;
-        }
-    }
-
-
-    loadDashboard();
-
-    </script>
-    """
+    function escapeHtml(v){return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');}
+    async function loadBusinessDashboard(){try{const r=await fetch('/api/dashboard');const d=await r.json();if(!d.success)throw new Error(d.error||'Dashboard error');const m=d.metrics||{};document.getElementById('dashTodaySales').textContent='₹'+Number(m.today_sales||0).toLocaleString('en-IN');document.getElementById('dashReceived').textContent='₹'+Number(m.received||0).toLocaleString('en-IN');document.getElementById('dashOutstanding').textContent='₹'+Number(m.outstanding||0).toLocaleString('en-IN');document.getElementById('dashCustomers').textContent=m.customers||0;const b=document.getElementById('dashboardTransactions');b.innerHTML=(d.recent_transactions||[]).map(t=>`<tr><td>${escapeHtml(t.customer||'-')}</td><td>${formatItems(t.items,t.item)}</td><td>₹${Number(t.total_amount||0).toLocaleString('en-IN')}</td><td>₹${Number(t.paid_amount||0).toLocaleString('en-IN')}</td><td>₹${Number(t.outstanding_amount||0).toLocaleString('en-IN')}</td></tr>`).join('');if(!b.innerHTML)b.innerHTML='<tr><td colspan="5" class="empty">No transactions yet.</td></tr>';}catch(e){console.error(e)}}loadBusinessDashboard();
+    </script>"""
+
+
+def home_html():
+    return """
+    <div class="app"><div class="container">__NAV__
+        <h1>Good business starts with clear hisab.</h1><div class="subtitle">Speak your transaction. AI prepares the ledger.</div>
+        <div class="card voice-card" style="margin-top:24px;"><button id="voiceButton" class="voice-button" onclick="startVoice()">🎙️</button><div id="voiceStatus" class="voice-status">Tap to speak</div><div class="voice-help">Hindi • Marathi • English • Hinglish</div><div id="voiceResult" style="margin-top:25px;"></div></div>
+        <div class="card manual-card"><div class="section-title">Manual Entry</div><div class="subtitle" style="margin-bottom:14px;">Add a transaction without voice.</div><div class="form-grid"><input id="manualCustomer" class="input" placeholder="Customer name"><textarea id="manualItems" class="input" rows="3" placeholder="Items (one per line or comma separated)"></textarea><input id="manualTotal" class="input" type="number" min="0" step="0.01" placeholder="Total amount (₹)"><input id="manualPaid" class="input" type="number" min="0" step="0.01" placeholder="Paid amount (₹)"><input id="manualPhone" class="input" type="tel" placeholder="Phone (optional)"><input id="manualDueDate" class="input" type="date" title="Due date (optional)"></div><button class="primary-btn" style="margin-top:15px;" onclick="saveManualEntry()">✓ Save Transaction</button><div id="manualResult" style="margin-top:12px;"></div></div>
+        <div class="section"><div class="section-title" style="display:flex;justify-content:space-between;align-items:center;"><span>Recent Transactions</span><span id="pageInfo" class="badge">Page 1</span></div><div class="card"><div style="overflow-x:auto;"><table class="table"><thead><tr><th>Customer</th><th>Items</th><th>Total</th><th>Paid</th><th>Outstanding</th></tr></thead><tbody id="transactionsBody"></tbody></table></div><div class="pagination"><button id="prevPage" class="secondary-btn" onclick="changePage(-1)">← Previous</button><button id="nextPage" class="secondary-btn" onclick="changePage(1)">Next →</button></div></div></div>
+    </div></div>
+    <script>
+    let allTransactions=[],currentPage=1;const pageSize=5;
+    function escapeHtml(v){return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');}
+    function renderTransactions(){const b=document.getElementById('transactionsBody'),pages=Math.max(1,Math.ceil(allTransactions.length/pageSize));currentPage=Math.min(currentPage,pages);const rows=allTransactions.slice((currentPage-1)*pageSize,currentPage*pageSize);b.innerHTML=rows.map(t=>`<tr><td>${escapeHtml(t.customer||'-')}</td><td>${formatItems(t.items,t.item)}</td><td>₹${Number(t.total_amount||0).toLocaleString('en-IN')}</td><td>₹${Number(t.paid_amount||0).toLocaleString('en-IN')}</td><td>₹${Number(t.outstanding_amount||0).toLocaleString('en-IN')}</td></tr>`).join('');if(!b.innerHTML)b.innerHTML='<tr><td colspan="5" class="empty">No transactions yet.</td></tr>';document.getElementById('pageInfo').textContent=`Page ${currentPage} of ${pages}`;document.getElementById('prevPage').disabled=currentPage<=1;document.getElementById('nextPage').disabled=currentPage>=pages;}
+    function changePage(d){currentPage+=d;renderTransactions();}
+    async function loadHome(){try{const r=await fetch('/api/transactions');const d=await r.json();if(!d.success)throw new Error(d.error||'Could not load transactions.');allTransactions=d.transactions||[];renderTransactions();}catch(e){document.getElementById('transactionsBody').innerHTML=`<tr><td colspan="5" class="status-error">${escapeHtml(e.message)}</td></tr>`;}}
+    async function saveManualEntry(){const result=document.getElementById('manualResult'),customer=document.getElementById('manualCustomer').value.trim(),itemsText=document.getElementById('manualItems').value.trim(),items=itemsText.split(/[,\n]+/).map(x=>x.trim()).filter(Boolean),total=Number(document.getElementById('manualTotal').value||0),paid=Number(document.getElementById('manualPaid').value||0),phone=document.getElementById('manualPhone').value.trim(),dueDate=document.getElementById('manualDueDate').value||null;if(!customer){result.innerHTML='<div class="status-error">Customer name is required.</div>';return;}if(total<=0){result.innerHTML='<div class="status-error">Enter a valid total amount.</div>';return;}if(paid<0||paid>total){result.innerHTML='<div class="status-error">Paid amount must be between ₹0 and the total.</div>';return;}try{const r=await fetch('/api/transactions/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer,phone:phone||null,item:items[0]||null,items:items,transaction_type:'sale',total_amount:total,paid_amount:paid,due_date:dueDate,payment_status:paid>=total?'paid':(paid>0?'partial':'pending')})});const d=await r.json();if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Could not save transaction.');result.innerHTML='<div class="status-ok">✓ Transaction saved successfully.</div>';['manualCustomer','manualItems','manualTotal','manualPaid','manualPhone','manualDueDate'].forEach(id=>document.getElementById(id).value='');currentPage=1;await loadHome();}catch(e){result.innerHTML=`<div class="status-error">${escapeHtml(e.message)}</div>`;}}
+    let mediaRecorder=null,audioChunks=[],recording=false,voiceTimeout=null;
+    async function startVoice(){const btn=document.getElementById('voiceButton'),status=document.getElementById('voiceStatus');if(recording){stopRecording();return;}if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){status.textContent='Your browser does not support microphone recording.';return;}try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});audioChunks=[];let mt='';if(MediaRecorder.isTypeSupported('audio/webm;codecs=opus'))mt='audio/webm;codecs=opus';else if(MediaRecorder.isTypeSupported('audio/webm'))mt='audio/webm';mediaRecorder=mt?new MediaRecorder(stream,{mimeType:mt}):new MediaRecorder(stream);mediaRecorder.ondataavailable=e=>{if(e.data&&e.data.size>0)audioChunks.push(e.data)};mediaRecorder.onstop=async()=>{stream.getTracks().forEach(t=>t.stop());const blob=new Blob(audioChunks,{type:mt||'audio/webm'});if(blob.size<1000){status.textContent='No voice captured. Please speak clearly and try again.';return;}await uploadVoice(blob)};mediaRecorder.start(250);recording=true;btn.textContent='⏹️';btn.classList.add('recording');status.textContent='Listening... Speak now';voiceTimeout=setTimeout(()=>{if(recording)stopRecording()},10000);}catch(e){console.error(e);status.textContent='Microphone permission is required.';}}
+    function stopRecording(){if(voiceTimeout)clearTimeout(voiceTimeout);if(mediaRecorder&&recording){recording=false;mediaRecorder.stop()}const b=document.getElementById('voiceButton');if(b){b.textContent='🎙️';b.classList.remove('recording')}}
+    async function uploadVoice(blob){const status=document.getElementById('voiceStatus'),box=document.getElementById('voiceResult');status.textContent='Processing with AI...';try{const f=new FormData();f.append('file',blob,'voice.webm');const r=await fetch('/api/process_voice_note',{method:'POST',body:f});const text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error(text||'Server returned invalid response.')}if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Voice processing failed.');const t=d.transaction||d;box.innerHTML=`<div class="card" style="text-align:left;"><div class="section-title">AI Transaction Preview</div><p><b>Customer:</b> ${escapeHtml(t.customer_name||t.customer||'-')}</p><p><b>Items:</b> ${formatItems(t.items,t.item)}</p><p><b>Total:</b> ₹${Number(t.total_amount||0).toLocaleString('en-IN')}</p><p><b>Paid:</b> ₹${Number(t.paid_amount||0).toLocaleString('en-IN')}</p><p><b>Outstanding:</b> ₹${Number(t.outstanding_amount||0).toLocaleString('en-IN')}</p><input id="voicePhone" class="input" style="margin-top:7px;" placeholder="Customer phone (optional)" type="tel"><button onclick='confirmVoiceTransaction(${JSON.stringify(t)})' class="primary-btn" style="margin-top:15px;">✓ Confirm & Save</button></div>`;status.textContent='AI understood your transaction';}catch(e){console.error(e);status.textContent='Voice processing failed';box.innerHTML=`<div class="card"><div class="status-error">${escapeHtml(e.message)}</div></div>`;}}
+    function parseItemsClient(value){return value?String(value).split(/[,\n]+/).map(x=>x.trim()).filter(Boolean):[];}
+    async function confirmVoiceTransaction(t){try{const pi=document.getElementById('voicePhone'),phone=pi?pi.value.trim():'';const r=await fetch('/api/transactions/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer:t.customer_name||t.customer||'',phone:phone||null,item:(Array.isArray(t.items)&&t.items.length?t.items[0]:(t.item||null)),items:(Array.isArray(t.items)?t.items:parseItemsClient(t.item)),transaction_type:t.intent||'sale',total_amount:Number(t.total_amount||0),paid_amount:Number(t.paid_amount||0),payment_method:t.payment_method||null,due_date:t.due_date||null,payment_status:t.payment_status||null,detected_language:t.language||t.detected_language||null,confidence:Number(t.confidence||0),raw_transcript:t.transcript||t.raw_transcript||null})});const d=await r.json();if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Could not save transaction.');document.getElementById('voiceStatus').textContent='Transaction saved ✓';document.getElementById('voiceResult').innerHTML='<div class="status-ok">✓ Transaction saved successfully.</div>';currentPage=1;await loadHome();}catch(e){document.getElementById('voiceStatus').textContent=e.message;}}
+    loadHome();
+    </script>"""
 
 
 # ============================================================
@@ -3004,585 +2230,26 @@ def dashboard_html():
 # ============================================================
 
 def customers_html():
-
     return """
-    <div class="app">
-
-        <div class="container">
-
-            __NAV__
-
-            <h1>Customers</h1>
-
-            <div class="subtitle">
-                Manage customers, phone numbers and reminder consent.
-            </div>
-
-            <div class="card"
-                 style="margin-top:24px;">
-
-                <div class="section-title">
-                    Add Customer
-                </div>
-
-                <div class="form-grid">
-
-                    <input
-                        id="newCustomerName"
-                        class="input"
-                        placeholder="Customer name"
-                    />
-
-                    <input
-                        id="newCustomerPhone"
-                        class="input"
-                        placeholder="+91 9876543210"
-                        type="tel"
-                    />
-
-                </div>
-
-                <div class="checkbox-row">
-
-                    <input
-                        id="newReminderEnabled"
-                        type="checkbox"
-                    />
-
-                    <label for="newReminderEnabled">
-                        Enable payment reminders
-                    </label>
-
-                </div>
-
-                <div class="checkbox-row">
-
-                    <input
-                        id="newReminderConsent"
-                        type="checkbox"
-                    />
-
-                    <label for="newReminderConsent">
-                        Customer has given reminder consent
-                    </label>
-
-                </div>
-
-                <button
-                    class="primary-btn"
-                    style="margin-top:15px;"
-                    onclick="addCustomer()">
-                    + Add Customer
-                </button>
-
-                <div
-                    id="addCustomerResult"
-                    style="margin-top:12px;">
-                </div>
-
-            </div>
-
-
-            <div
-                id="customersList"
-                class="grid"
-                style="margin-top:24px;">
-            </div>
-
-        </div>
-
-    </div>
-
-
+    <div class="app"><div class="container">__NAV__
+        <h1>Customers</h1><div class="subtitle">Manage your customer list. Only one customer can be edited at a time.</div>
+        <div style="margin-top:20px;"><button class="primary-btn" onclick="toggleAddCustomer()">+ Add Customer</button></div>
+        <div id="addCustomerPanel" class="card" style="margin-top:16px;display:none;"><div class="section-title">Add Customer</div><div class="form-grid"><input id="newCustomerName" class="input" placeholder="Customer name"><input id="newCustomerPhone" class="input" placeholder="+91 9876543210" type="tel"></div><div class="checkbox-row"><input id="newReminderEnabled" type="checkbox"><label for="newReminderEnabled">Enable payment reminders</label></div><div class="checkbox-row"><input id="newReminderConsent" type="checkbox"><label for="newReminderConsent">Customer has given reminder consent</label></div><button class="primary-btn" style="margin-top:15px;" onclick="addCustomer()">Save Customer</button><div id="addCustomerResult" style="margin-top:12px;"></div></div>
+        <div id="customersList" style="margin-top:24px;"></div><div id="editPanel" class="card" style="margin-top:18px;display:none;"></div>
+    </div></div>
     <script>
-
-    async function addCustomer() {
-
-        const name =
-            document.getElementById(
-                'newCustomerName'
-            ).value.trim();
-
-        const phone =
-            document.getElementById(
-                'newCustomerPhone'
-            ).value.trim();
-
-        const reminderEnabled =
-            document.getElementById(
-                'newReminderEnabled'
-            ).checked;
-
-        const reminderConsent =
-            document.getElementById(
-                'newReminderConsent'
-            ).checked;
-
-        const result =
-            document.getElementById(
-                'addCustomerResult'
-            );
-
-        if (!name) {
-
-            result.innerHTML =
-                '<div class="status-error">Customer name is required.</div>';
-
-            return;
-        }
-
-        try {
-
-            const response =
-                await fetch(
-                    '/api/customers',
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type':
-                                'application/json'
-                        },
-                        body: JSON.stringify({
-
-                            name: name,
-
-                            phone:
-                                phone || null,
-
-                            preferred_reminder_language:
-                                'hindi',
-
-                            reminder_enabled:
-                                reminderEnabled,
-
-                            reminder_consent:
-                                reminderConsent
-
-                        })
-                    }
-                );
-
-            const data =
-                await response.json();
-
-            if (
-                !response.ok ||
-                data.success === false
-            ) {
-
-                throw new Error(
-                    data.error ||
-                    'Could not create customer.'
-                );
-            }
-
-            result.innerHTML =
-                '<div class="status-ok">✓ Customer saved successfully.</div>';
-
-            document.getElementById(
-                'newCustomerName'
-            ).value = '';
-
-            document.getElementById(
-                'newCustomerPhone'
-            ).value = '';
-
-            document.getElementById(
-                'newReminderEnabled'
-            ).checked = false;
-
-            document.getElementById(
-                'newReminderConsent'
-            ).checked = false;
-
-            loadCustomers();
-
-        } catch (error) {
-
-            result.innerHTML =
-                '<div class="status-error">' +
-                escapeHtml(error.message) +
-                '</div>';
-        }
-    }
-
-
-    async function updateCustomer(
-        customerId
-    ) {
-
-        const name =
-            document.getElementById(
-                'name-' + customerId
-            ).value.trim();
-
-        const phone =
-            document.getElementById(
-                'phone-' + customerId
-            ).value.trim();
-
-        const enabled =
-            document.getElementById(
-                'enabled-' + customerId
-            ).checked;
-
-        const consent =
-            document.getElementById(
-                'consent-' + customerId
-            ).checked;
-
-        const language =
-            document.getElementById(
-                'language-' + customerId
-            ).value;
-
-        const result =
-            document.getElementById(
-                'result-' + customerId
-            );
-
-        try {
-
-            const response =
-                await fetch(
-                    '/api/customers/' +
-                    customerId,
-                    {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type':
-                                'application/json'
-                        },
-                        body: JSON.stringify({
-
-                            name: name,
-
-                            phone:
-                                phone || null,
-
-                            preferred_reminder_language:
-                                language,
-
-                            reminder_enabled:
-                                enabled,
-
-                            reminder_consent:
-                                consent,
-
-                            reminder_frequency_days:
-                                3
-
-                        })
-                    }
-                );
-
-            const data =
-                await response.json();
-
-            if (
-                !response.ok ||
-                data.success === false
-            ) {
-
-                throw new Error(
-                    data.error ||
-                    'Could not update customer.'
-                );
-            }
-
-            result.innerHTML =
-                '<div class="status-ok">✓ Saved</div>';
-
-            setTimeout(
-                () => {
-                    result.innerHTML = '';
-                },
-                2500
-            );
-
-            loadCustomers();
-
-        } catch (error) {
-
-            result.innerHTML =
-                '<div class="status-error">' +
-                escapeHtml(error.message) +
-                '</div>';
-        }
-    }
-
-
-    async function loadCustomers() {
-
-        const container =
-            document.getElementById(
-                'customersList'
-            );
-
-        try {
-
-            const response =
-                await fetch(
-                    '/api/customers'
-                );
-
-            const data =
-                await response.json();
-
-            if (!data.success) {
-
-                throw new Error(
-                    data.error ||
-                    'Could not load customers.'
-                );
-            }
-
-            container.innerHTML = '';
-
-            for (
-                const customer
-                of data.customers || []
-            ) {
-
-                const enabled =
-                    customer.reminder_enabled
-                    ? 'checked'
-                    : '';
-
-                const consent =
-                    customer.reminder_consent
-                    ? 'checked'
-                    : '';
-
-                const language =
-                    customer.preferred_reminder_language ||
-                    'hindi';
-
-                container.innerHTML += `
-
-                    <div class="card">
-
-                        <div style="
-                            font-size:18px;
-                            font-weight:800;
-                        ">
-                            ${escapeHtml(
-                                customer.name
-                            )}
-                        </div>
-
-                        <div
-                            style="
-                                margin-top:12px;
-                                color:var(--muted);
-                            "
-                        >
-                            Outstanding
-                        </div>
-
-                        <div class="metric">
-                            ₹${Number(
-                                customer.outstanding_amount || 0
-                            ).toLocaleString('en-IN')}
-                        </div>
-
-
-                        <div style="
-                            margin-top:20px;
-                        ">
-
-                            <label>
-                                Customer name
-                            </label>
-
-                            <input
-                                id="name-${customer.id}"
-                                class="input"
-                                style="margin-top:5px;"
-                                value="${escapeHtml(
-                                    customer.name || ''
-                                )}"
-                            />
-
-                        </div>
-
-
-                        <div style="
-                            margin-top:12px;
-                        ">
-
-                            <label>
-                                Phone number
-                            </label>
-
-                            <input
-                                id="phone-${customer.id}"
-                                class="input"
-                                style="margin-top:5px;"
-                                type="tel"
-                                placeholder="+91 9876543210"
-                                value="${escapeHtml(
-                                    customer.phone || ''
-                                )}"
-                            />
-
-                        </div>
-
-
-                        <div style="
-                            margin-top:12px;
-                        ">
-
-                            <label>
-                                Reminder language
-                            </label>
-
-                            <select
-                                id="language-${customer.id}"
-                                class="input"
-                                style="margin-top:5px;"
-                            >
-
-                                <option
-                                    value="hindi"
-                                    ${language === 'hindi'
-                                        ? 'selected'
-                                        : ''}>
-                                    Hindi
-                                </option>
-
-                                <option
-                                    value="marathi"
-                                    ${language === 'marathi'
-                                        ? 'selected'
-                                        : ''}>
-                                    Marathi
-                                </option>
-
-                                <option
-                                    value="english"
-                                    ${language === 'english'
-                                        ? 'selected'
-                                        : ''}>
-                                    English
-                                </option>
-
-                            </select>
-
-                        </div>
-
-
-                        <div class="checkbox-row">
-
-                            <input
-                                id="enabled-${customer.id}"
-                                type="checkbox"
-                                ${enabled}
-                            />
-
-                            <label
-                                for="enabled-${customer.id}">
-                                Enable reminders
-                            </label>
-
-                        </div>
-
-
-                        <div class="checkbox-row">
-
-                            <input
-                                id="consent-${customer.id}"
-                                type="checkbox"
-                                ${consent}
-                            />
-
-                            <label
-                                for="consent-${customer.id}">
-                                Customer gave consent
-                            </label>
-
-                        </div>
-
-
-                        <button
-                            class="primary-btn"
-                            style="margin-top:15px;"
-                            onclick="updateCustomer(${customer.id})">
-                            Save Changes
-                        </button>
-
-
-                        <div
-                            id="result-${customer.id}"
-                            style="margin-top:10px;">
-                        </div>
-
-
-                        <div style="
-                            margin-top:15px;
-                            padding:10px;
-                            border-radius:10px;
-                            background:rgba(96,165,250,.08);
-                            font-size:12px;
-                            color:var(--muted);
-                        ">
-
-                            ${customer.reminder_enabled &&
-                              customer.reminder_consent
-                                ? '🟢 Ready for reminders'
-                                : '⚪ Reminders disabled'}
-
-                        </div>
-
-                    </div>
-                `;
-            }
-
-
-            if (
-                !data.customers ||
-                data.customers.length === 0
-            ) {
-
-                container.innerHTML =
-                    '<div class="empty">No customers yet.</div>';
-            }
-
-        } catch (error) {
-
-            container.innerHTML = `
-
-                <div class="card">
-
-                    <div class="status-error">
-                        ${escapeHtml(
-                            error.message
-                        )}
-                    </div>
-
-                </div>
-
-            `;
-        }
-    }
-
-
-    function escapeHtml(value) {
-
-        return String(value)
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#039;');
-
-    }
-
-
+    let customersData=[],editingCustomerId=null;
+    function escapeHtml(v){return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');}
+    function toggleAddCustomer(){const p=document.getElementById('addCustomerPanel');p.style.display=p.style.display==='none'?'block':'none';}
+    async function loadCustomers(){try{const r=await fetch('/api/customers');const d=await r.json();if(!d.success)throw new Error(d.error||'Could not load customers.');customersData=d.customers||[];renderCustomers();}catch(e){document.getElementById('customersList').innerHTML=`<div class="card status-error">${escapeHtml(e.message)}</div>`;}}
+    function renderCustomers(){const b=document.getElementById('customersList');if(!customersData.length){b.innerHTML='<div class="card empty">No customers yet. Use + Add Customer to create one.</div>';return;}b.innerHTML=customersData.map(c=>`<div class="card customer-row"><div><div style="font-size:18px;font-weight:800;">${escapeHtml(c.name||'-')}</div><div class="customer-meta">${c.phone?'📱 '+escapeHtml(c.phone):'No phone'} · Outstanding: <b>₹${Number(c.outstanding_amount||0).toLocaleString('en-IN')}</b></div></div><div class="customer-actions"><button class="secondary-btn" onclick="openEdit(${c.id})">Update</button><button class="danger-btn" onclick="deleteCustomer(${c.id})">Delete</button></div></div>`).join('');}
+    function openEdit(id){const c=customersData.find(x=>x.id===id);if(!c)return;editingCustomerId=id;const p=document.getElementById('editPanel');p.style.display='block';p.innerHTML=`<div class="section-title">Update Customer</div><div class="form-grid"><input id="editName" class="input" value="${escapeHtml(c.name||'')}" placeholder="Customer name"><input id="editPhone" class="input" value="${escapeHtml(c.phone||'')}" placeholder="Phone" type="tel"><select id="editLanguage" class="input"><option value="hindi">Hindi</option><option value="marathi">Marathi</option><option value="english">English</option></select><input id="editFrequency" class="input" type="number" min="1" value="${Number(c.reminder_frequency_days||3)}" placeholder="Reminder frequency (days)"></div><div class="checkbox-row"><input id="editReminderEnabled" type="checkbox" ${c.reminder_enabled?'checked':''}><label for="editReminderEnabled">Enable payment reminders</label></div><div class="checkbox-row"><input id="editReminderConsent" type="checkbox" ${c.reminder_consent?'checked':''}><label for="editReminderConsent">Customer has given reminder consent</label></div><div style="margin-top:15px;display:flex;gap:10px;"><button class="primary-btn" onclick="saveEdit()">Save Changes</button><button class="secondary-btn" onclick="closeEdit()">Cancel</button></div><div id="editResult" style="margin-top:12px;"></div>`;document.getElementById('editLanguage').value=c.preferred_reminder_language||'hindi';p.scrollIntoView({behavior:'smooth',block:'start'});}
+    function closeEdit(){editingCustomerId=null;const p=document.getElementById('editPanel');p.style.display='none';p.innerHTML='';}
+    async function saveEdit(){if(!editingCustomerId)return;const result=document.getElementById('editResult');try{const r=await fetch('/api/customers/'+editingCustomerId,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('editName').value.trim(),phone:document.getElementById('editPhone').value.trim()||null,preferred_reminder_language:document.getElementById('editLanguage').value,reminder_enabled:document.getElementById('editReminderEnabled').checked,reminder_consent:document.getElementById('editReminderConsent').checked,reminder_frequency_days:Number(document.getElementById('editFrequency').value||3)})});const d=await r.json();if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Could not update customer.');await loadCustomers();closeEdit();}catch(e){result.innerHTML=`<div class="status-error">${escapeHtml(e.message)}</div>`;}}
+    async function deleteCustomer(id){const c=customersData.find(x=>x.id===id);if(!c)return;if(!confirm(`Delete ${c.name}? Customers with active transactions cannot be deleted.`))return;try{const r=await fetch('/api/customers/'+id,{method:'DELETE'});const d=await r.json();if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Could not delete customer.');if(editingCustomerId===id)closeEdit();await loadCustomers();}catch(e){alert(e.message);}}
+    async function addCustomer(){const result=document.getElementById('addCustomerResult'),name=document.getElementById('newCustomerName').value.trim(),phone=document.getElementById('newCustomerPhone').value.trim();if(!name){result.innerHTML='<div class="status-error">Customer name is required.</div>';return;}try{const r=await fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone:phone||null,reminder_enabled:document.getElementById('newReminderEnabled').checked,reminder_consent:document.getElementById('newReminderConsent').checked})});const d=await r.json();if(!r.ok||d.success===false)throw new Error(d.error||d.detail||'Could not create customer.');result.innerHTML='<div class="status-ok">✓ Customer saved.</div>';document.getElementById('newCustomerName').value='';document.getElementById('newCustomerPhone').value='';await loadCustomers();}catch(e){result.innerHTML=`<div class="status-error">${escapeHtml(e.message)}</div>`;}}
     loadCustomers();
-
-    </script>
-    """
+    </script>"""
 
 
 # ============================================================
@@ -3995,6 +2662,17 @@ def setup_page(
 
 
 @ui.page("/")
+def home_page():
+
+    setup_page(
+        home_html().replace(
+            "__NAV__",
+            navigation_html(),
+        )
+    )
+
+
+@ui.page("/dashboard")
 def dashboard_page():
 
     setup_page(
