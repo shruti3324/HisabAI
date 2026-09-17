@@ -2712,11 +2712,32 @@ def setup_page(
     # Important: add the page DOM BEFORE scheduling page JavaScript.
     ui.add_body_html(body_html)
 
-    # NiceGUI's run_javascript is queued for the connected browser and executed
-    # via eval(), so the page elements above already exist when these scripts run.
+    # NiceGUI executes these snippets through the browser client. Function
+    # declarations inside that execution context are not guaranteed to be
+    # available to HTML inline onclick handlers. Explicitly publish every
+    # page-level function on window so buttons and dynamically-created buttons
+    # can always call them.
     for script in scripts:
-        if script.strip():
-            ui.run_javascript(script)
+        if not script.strip():
+            continue
+
+        function_names = []
+        for name in re.findall(
+            r"\b(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(",
+            script,
+        ):
+            if name not in function_names:
+                function_names.append(name)
+
+        expose = "\n".join(
+            f"window.{name} = {name};"
+            for name in function_names
+        )
+
+        if expose:
+            script = script + "\n\n" + expose
+
+        ui.run_javascript(script)
 
 
 @ui.page("/")
