@@ -1,0 +1,1 @@
+"""Voice Ledger application package."""
