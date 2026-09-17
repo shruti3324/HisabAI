@@ -1,150 +1,145 @@
-# HisabAI Architecture
+HisabAI Architecture
 
-## Overview
+Problem Statement
 
-HisabAI is a voice-first bookkeeping system where artificial intelligence converts natural-language voice input into structured financial transactions.
+Orchestrate September 2026 — PS 01: Voice-Note Ledger for Small Vendors.
 
-The architecture separates AI interpretation from financial persistence.
+High-Level Architecture
 
-## System Flow
+                         ┌──────────────────────────┐
+                         │       Shopkeeper          │
+                         │ Hindi / Marathi /         │
+                         │ English / Hinglish        │
+                         └────────────┬─────────────┘
+                                      │
+                                      ▼
+                         ┌──────────────────────────┐
+                         │      NiceGUI Web UI      │
+                         │ MediaRecorder + HTML/JS  │
+                         └────────────┬─────────────┘
+                                      │ audio/webm
+                                      ▼
+                         ┌──────────────────────────┐
+                         │       FastAPI API        │
+                         └────────────┬─────────────┘
+                                      │
+                                      ▼
+                         ┌──────────────────────────┐
+                         │       AI Service         │
+                         │ transcription +          │
+                         │ structured extraction    │
+                         └────────────┬─────────────┘
+                                      │
+                                      ▼
+                         ┌──────────────────────────┐
+                         │   AI Transaction Preview │
+                         │ customer / items / money │
+                         └────────────┬─────────────┘
+                                      │ user confirms
+                                      ▼
+                         ┌──────────────────────────┐
+                         │       SQLModel DB         │
+                         │ Customer / Transaction / │
+                         │ Reminder / Payment       │
+                         └───────┬─────────┬────────┘
+                                 │         │
+                      ┌──────────┘         └────────────┐
+                      ▼                                 ▼
+             ┌─────────────────┐               ┌─────────────────┐
+             │    Dashboard    │               │    Reminders    │
+             │ sales/received/ │               │ candidates +    │
+             │ outstanding     │               │ scheduling      │
+             └─────────────────┘               └────────┬────────┘
+                                                        │
+                                                        ▼
+                                               ┌─────────────────┐
+                                               │     Twilio      │
+                                               │ voice provider  │
+                                               └─────────────────┘
 
-```text
-                    USER
-                     │
-                     ▼
-             ┌───────────────┐
-             │ Voice Recording│
-             └───────┬───────┘
-                     │
-                     ▼
-             ┌───────────────┐
-             │ Groq Whisper  │
-             │ Speech-to-Text│
-             └───────┬───────┘
-                     │
-                     ▼
-             ┌───────────────┐
-             │   Language    │
-             │ Normalization │
-             └───────┬───────┘
-                     │
-                     ▼
-             ┌───────────────┐
-             │ AI Extraction │
-             │ Transaction   │
-             │ Information  │
-             └───────┬───────┘
-                     │
-                     ▼
-             ┌───────────────┐
-             │   Validation  │
-             │ + Confirmation│
-             └───────┬───────┘
-                     │
-                     ▼
-             ┌───────────────┐
-             │   SQLModel    │
-             │    Database   │
-             └───────┬───────┘
-                     │
-          ┌──────────┼───────────┐
-          ▼          ▼           ▼
-      Dashboard   Customers   Reminders
-```
+Core Transaction Flow
 
-## AI Layer
+Voice
+  ↓
+Audio upload
+  ↓
+AI processing
+  ↓
+Structured transaction
+  ↓
+User confirmation
+  ↓
+Save Customer + Transaction
+  ↓
+Outstanding = Total - Paid
+  ↓
+Dashboard / Customer / Reminder views
 
-The AI layer performs the primary interpretation work.
+Settlement Flow
 
-### Step 1 — Speech Recognition
+Customer has outstanding udhaar
+             ↓
+Customers → Update
+             ↓
+Clear outstanding balance
+             ↓
+Remaining outstanding amount marked collected
+             ↓
+Dashboard Received increases
+Dashboard Outstanding decreases to ₹0
+             ↓
+Customer may be deleted once no active outstanding remains
 
-The recorded audio is transcribed using Groq Whisper.
+Components
 
-### Step 2 — Language Processing
+UI
 
-The transcript is normalized to handle:
+NiceGUI hosts the interface. Browser JavaScript handles microphone recording, API requests, rendering, pagination and theme controls.
 
-* Hindi
-* Marathi
-* English
-* Hinglish
-* Code-switched speech
-* Spoken numbers and currency expressions
+API
 
-### Step 3 — Transaction Extraction
+FastAPI handles the voice-processing endpoint, transaction confirmation, dashboard aggregation, customer management, reminders and Twilio callbacks.
 
-The language model extracts structured information such as:
+AI
 
-```json
-{
-  "customer": "Ramesh",
-  "total_amount": 1500,
-  "paid_amount": 500,
-  "transaction_type": "sale"
-}
-```
+services/ai_service.py processes recorded audio and returns structured transaction information. services/language_service.py supports language/number normalization.
 
-### Step 4 — Human Confirmation
+Persistence
 
-The extracted transaction is shown to the user.
+models.py contains SQLModel entities. db.py creates the database engine/session and performs SQLite schema initialization.
 
-The AI does not silently write the transaction to the ledger.
+Reminder System
 
-### Step 5 — Persistence
+services/reminder_service.py provides reminder candidates, settings, scheduling, execution, history, Twilio voice generation and provider-status handling.
 
-After confirmation, the backend stores the transaction using SQLModel.
+Entity Relationships
 
-## Database Layer
+Customer 1 ────────< Transaction
+Customer 1 ────────< Reminder
+Customer 1 ────────< Payment
 
-The database contains information for:
+Deployment
 
-* Customers
-* Transactions
-* Reminders
-* Ledger history
+GitHub
+  ↓
+Render build
+  ↓
+Python dependencies
+  ↓
+Uvicorn
+  ↓
+FastAPI + NiceGUI
+  ↓
+Public HTTPS URL
 
-Outstanding balances are derived from transaction data.
+Render command:
 
-## Query Layer
+uvicorn main:fastapi_app --host 0.0.0.0 --port $PORT
 
-Business questions are mapped to supported database operations.
+Security
 
-The application does not allow the language model to generate arbitrary SQL and execute it directly.
+Secrets are environment variables. .env and database files are excluded from GitHub by .gitignore.
 
-## Reminder Layer
+PS01 Gap Check
 
-The reminder service handles scheduled reminders and communication-provider integration.
-
-## Frontend
-
-NiceGUI provides the operating interface:
-
-* Dashboard
-* Voice input
-* Customer pages
-* Reminder pages
-* Transaction confirmation
-
-## Deployment
-
-The application runs as a FastAPI application with NiceGUI mounted on top.
-
-Render provides the public deployment environment.
-
-```text
-Internet
-   │
-   ▼
-Render
-   │
-   ▼
-FastAPI
-   │
-   ├── NiceGUI
-   ├── AI Services
-   ├── Ledger Services
-   └── Reminder Services
-          │
-          ▼
-       Database
-```
+PS01 explicitly calls for real-time text query filters and low-stock reminders. These are not represented as completed features in the current codebase and must be added and tested before being claimed in the final submission. 
