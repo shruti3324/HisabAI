@@ -2685,21 +2685,38 @@ def reminders_html():
 def setup_page(
     html: str,
 ):
-    """Render the page HTML and execute embedded page JavaScript reliably.
+    """Render raw HTML first, then execute its JavaScript after the client connects.
 
-    NiceGUI can update page fragments dynamically. To avoid scripts being inserted
-    as inert HTML, move every inline <script> block into the document head and
-    keep only markup in the body fragment.
+    The page HTML contains normal DOM elements such as buttons and containers.
+    Executing page scripts through ``ui.run_javascript`` makes NiceGUI send the
+    script only after the browser client is connected and after the page HTML is
+    available. This prevents startup races where functions run against missing
+    DOM elements (which was causing Home and Reminders to appear blank/inactive).
     """
-    scripts = re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>", html, flags=re.IGNORECASE | re.DOTALL)
-    body_html = re.sub(r"<script(?:\s[^>]*)?>.*?</script>", "", html, flags=re.IGNORECASE | re.DOTALL)
+    scripts = re.findall(
+        r"<script(?:\s[^>]*)?>(.*?)</script>",
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    body_html = re.sub(
+        r"<script(?:\s[^>]*)?>.*?</script>",
+        "",
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
 
+    # CSS and shared theme helpers can be loaded in the document head.
     ui.add_head_html(APP_CSS)
     ui.add_head_html(THEME_SCRIPT)
-    for script in scripts:
-        ui.add_head_html(f"<script>\n{script}\n</script>")
 
+    # Important: add the page DOM BEFORE scheduling page JavaScript.
     ui.add_body_html(body_html)
+
+    # NiceGUI's run_javascript is queued for the connected browser and executed
+    # via eval(), so the page elements above already exist when these scripts run.
+    for script in scripts:
+        if script.strip():
+            ui.run_javascript(script)
 
 
 @ui.page("/")
