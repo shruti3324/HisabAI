@@ -50,7 +50,7 @@ The vendor has two ways to create a transaction:
 
 Click:
 
-**🎙️ Tap to speak**
+** Tap to speak**
 
 The vendor can speak the transaction naturally.
 
@@ -237,19 +237,19 @@ Then demonstrate:
 
 # 11. Key Features to Highlight
 
-### 🎙️ Voice-first interaction
+###  Voice-first interaction
 
 Vendors can speak instead of manually typing every transaction.
 
-### 🌐 Indian-language friendly
+###  Indian-language friendly
 
 The interface is designed for Hindi, Marathi, English, and Hinglish.
 
-### 🧾 Digital ledger
+###  Digital ledger
 
 Transactions are stored digitally with customer, item, payment, and outstanding information.
 
-### 📊 Business dashboard
+###  Business dashboard
 
 The vendor can quickly see:
 
@@ -259,15 +259,15 @@ The vendor can quickly see:
 * Customer count
 * Recent activity
 
-### 👥 Customer management
+###  Customer management
 
 Customers can be added, updated, and deleted.
 
-### 📞 Payment reminder workflow
+###  Payment reminder workflow
 
 Customers with outstanding payments can be managed through the reminder system with consent-aware collection.
 
-### ✍️ Manual fallback
+###  Manual fallback
 
 Transactions can also be entered manually when voice input is not preferred.
 
@@ -333,19 +333,19 @@ End the demo with:
 
 Before presenting, verify:
 
-* [ ] Home page loads
-* [ ] Voice input works
-* [ ] Manual Entry works
-* [ ] Transaction can be saved
-* [ ] Recent Transactions updates
-* [ ] Dashboard displays correct values
-* [ ] Customer can be added
-* [ ] Customer can be updated/deleted
-* [ ] Outstanding amount is displayed correctly
-* [ ] Reminder page loads
-* [ ] Reminder consent workflow is available
-* [ ] Dark/Light mode works
-* [ ] No API keys or `.env` secrets are exposed
+* [Y] Home page loads
+* [Y] Voice input works
+* [Y] Manual Entry works
+* [Y] Transaction can be saved
+* [Y] Recent Transactions updates
+* [Y] Dashboard displays correct values
+* [Y] Customer can be added
+* [Y] Customer can be updated/deleted
+* [Y] Outstanding amount is displayed correctly
+* [Y] Reminder page loads
+* [Y] Reminder consent workflow is available
+* [Y] Dark/Light mode works
+* [Y] No API keys or `.env` secrets are exposed
 
 ## Live Application
 
