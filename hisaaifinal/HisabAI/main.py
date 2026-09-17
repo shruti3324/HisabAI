@@ -2086,71 +2086,43 @@ body.light .nav-link:hover {
 # GLOBAL THEME SCRIPT
 # ============================================================
 
-THEME_SCRIPT = """
+THEME_SCRIPT = r"""
 <script>
+(() => {
+    if (window.__hisabaiThemeScriptLoaded) return;
+    window.__hisabaiThemeScriptLoaded = true;
 
-(function() {
-
-    function applySavedTheme() {
-
-        const theme =
-            localStorage.getItem('hisabai-theme') ||
-            'dark';
-
-        if (theme === 'light') {
-            document.body.classList.add('light');
-        } else {
-            document.body.classList.remove('light');
-        }
-
-        document
-            .querySelectorAll('.theme-btn')
-            .forEach(btn => {
-
-                btn.classList.toggle(
-                    'active',
-                    btn.dataset.theme === theme
-                );
-
-            });
+    function applyTheme(theme) {
+        const selected = theme === 'light' ? 'light' : 'dark';
+        document.body.classList.toggle('light', selected === 'light');
+        try { localStorage.setItem('hisabai-theme', selected); } catch {}
+        document.querySelectorAll('[data-theme-action]').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.themeAction === selected);
+        });
     }
 
-    window.setTheme = function(theme) {
+    window.setTheme = applyTheme;
 
-        localStorage.setItem(
-            'hisabai-theme',
-            theme
-        );
+    function restoreTheme() {
+        let saved = 'dark';
+        try { saved = localStorage.getItem('hisabai-theme') || 'dark'; } catch {}
+        applyTheme(saved);
+    }
 
-        if (theme === 'light') {
-            document.body.classList.add('light');
-        } else {
-            document.body.classList.remove('light');
-        }
+    document.addEventListener('click', event => {
+        const button = event.target.closest('[data-theme-action]');
+        if (!button) return;
+        event.preventDefault();
+        event.stopPropagation();
+        applyTheme(button.dataset.themeAction);
+    });
 
-        document
-            .querySelectorAll('.theme-btn')
-            .forEach(btn => {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', restoreTheme, { once: true });
+    } else {
+        restoreTheme();
+    }
 
-                btn.classList.toggle(
-                    'active',
-                    btn.dataset.theme === theme
-                );
-
-            });
-    };
-
-    window.addEventListener(
-        'DOMContentLoaded',
-        applySavedTheme
-    );
-
-    setTimeout(
-        applySavedTheme,
-        50
-    );
-
-    // Shared helper used by Home and Dashboard transaction tables.
     window.formatItems = function(items, fallback) {
         let values = [];
         if (Array.isArray(items)) {
@@ -2167,7 +2139,7 @@ THEME_SCRIPT = """
         }
         values = values.map(v => String(v).trim()).filter(Boolean);
         if (!values.length) return '—';
-        const esc = v => String(v)
+        const esc = value => String(value)
             .replaceAll('&', '&amp;')
             .replaceAll('<', '&lt;')
             .replaceAll('>', '&gt;')
@@ -2177,9 +2149,7 @@ THEME_SCRIPT = """
             values.map(v => '<li>' + esc(v) + '</li>').join('') +
             '</ul>';
     };
-
 })();
-
 </script>
 """
 
@@ -2198,8 +2168,8 @@ def navigation_html():
             <a class="nav-link" href="/customers">Customers</a>
             <a class="nav-link" href="/reminders">Reminders</a>
             <div class="theme-switch">
-                <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')">🌙 Dark</button>
-                <button class="theme-btn" data-theme="light" onclick="setTheme('light')">☀ Light</button>
+                <button class="theme-btn" data-theme="dark" type="button" data-theme-action="dark">🌙 Dark</button>
+                <button class="theme-btn" data-theme="light" type="button" data-theme-action="light">☀ Light</button>
             </div>
         </div>
     </div>
@@ -2224,6 +2194,17 @@ def dashboard_html():
     </div></div>
     <script>
     function escapeHtml(v){return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');}
+    function formatItems(items,fallback){
+        let values=[];
+        if(Array.isArray(items)){values=items;}
+        else if(items!==undefined&&items!==null&&String(items).trim()){
+            try{const parsed=JSON.parse(String(items));values=Array.isArray(parsed)?parsed:[parsed];}
+            catch(e){values=String(items).split(/[,\n]+/);}
+        }else if(fallback){values=String(fallback).split(/[,\n]+/);}
+        values=values.map(v=>String(v).trim()).filter(Boolean);
+        if(!values.length)return '—';
+        return '<ul style="margin:0;padding-left:18px;">'+values.map(v=>'<li>'+escapeHtml(v)+'</li>').join('')+'</ul>';
+    }
     async function loadBusinessDashboard(){try{const r=await fetch('/api/dashboard');const d=await r.json();if(!d.success)throw new Error(d.error||'Dashboard error');const m=d.metrics||{};document.getElementById('dashTodaySales').textContent='₹'+Number(m.today_sales||0).toLocaleString('en-IN');document.getElementById('dashReceived').textContent='₹'+Number(m.received||0).toLocaleString('en-IN');document.getElementById('dashOutstanding').textContent='₹'+Number(m.outstanding||0).toLocaleString('en-IN');document.getElementById('dashCustomers').textContent=m.customers||0;const b=document.getElementById('dashboardTransactions');b.innerHTML=(d.recent_transactions||[]).map(t=>`<tr><td>${escapeHtml(t.customer||'-')}</td><td>${formatItems(t.items,t.item)}</td><td>₹${Number(t.total_amount||0).toLocaleString('en-IN')}</td><td>₹${Number(t.paid_amount||0).toLocaleString('en-IN')}</td><td>₹${Number(t.outstanding_amount||0).toLocaleString('en-IN')}</td></tr>`).join('');if(!b.innerHTML)b.innerHTML='<tr><td colspan="5" class="empty">No transactions yet.</td></tr>';}catch(e){console.error(e)}}loadBusinessDashboard();
     </script>"""
 
@@ -3050,10 +3031,10 @@ def setup_page(
     timeout and ensuring the Home controls bind after the DOM is available.
     """
     ui.add_head_html(APP_CSS)
-    ui.add_head_html(THEME_SCRIPT)
-    if page_script:
-        ui.add_head_html(page_script)
     ui.add_body_html(html)
+    ui.add_body_html(THEME_SCRIPT)
+    if page_script:
+        ui.add_body_html(page_script)
 
 
 @ui.page("/")
