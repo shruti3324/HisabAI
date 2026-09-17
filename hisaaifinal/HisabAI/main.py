@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import re
 import tempfile
 from contextlib import asynccontextmanager
 from datetime import date, datetime
@@ -2718,67 +2717,17 @@ def reminders_html():
 def setup_page(
     html: str,
 ):
-    """Render raw HTML first and run page JavaScript after the client connects.
+    """Render the complete raw page HTML directly.
 
-    The raw HTML is part of the initial NiceGUI response. Page JavaScript is
-    registered with the current client's on_connect hook so it runs only after
-    the browser has received the DOM and established the NiceGUI WebSocket.
+    The page HTML already contains its own <script> blocks. NiceGUI supports
+    injecting those scripts through ui.add_body_html(), so there is no need to
+    extract them and send them later through client.run_javascript(). Doing so
+    avoids client-connection timing issues and the 1-second JavaScript response
+    timeout.
     """
-    scripts = re.findall(
-        r"<script(?:\s[^>]*)?>(.*?)</script>",
-        html,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    body_html = re.sub(
-        r"<script(?:\s[^>]*)?>.*?</script>",
-        "",
-        html,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-
     ui.add_head_html(APP_CSS)
     ui.add_head_html(THEME_SCRIPT)
-    ui.add_body_html(body_html)
-
-    prepared_scripts = []
-    for script in scripts:
-        if not script.strip():
-            continue
-
-        function_names = []
-        for name in re.findall(
-            r"\b(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(",
-            script,
-        ):
-            if name not in function_names:
-                function_names.append(name)
-
-        expose = "\n".join(
-            f"window.{name} = {name};"
-            for name in function_names
-        )
-
-        if expose:
-            script = script + "\n\n" + expose
-
-        prepared_scripts.append(script)
-
-    async def execute_page_scripts(client=None):
-        """Execute page JS after the browser DOM/WebSocket is ready without waiting for a JS result.
-
-        These page scripts perform DOM updates and start fetch/event listeners; they do not
-        return a value to Python. Using NiceGUI's default respond=True makes the server wait
-        for a JavaScript response and can hit the default 1-second timeout while the browser
-        is still executing async code.
-        """
-        for script in prepared_scripts:
-            if client is not None:
-                await client.run_javascript(script, respond=False)
-            else:
-                await ui.run_javascript(script, respond=False)
-
-    if prepared_scripts:
-        ui.context.client.on_connect(execute_page_scripts)
+    ui.add_body_html(html)
 
 
 @ui.page("/")
