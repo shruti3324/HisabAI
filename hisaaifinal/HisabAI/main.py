@@ -2192,7 +2192,11 @@ def dashboard_html():
         </div>
         <div class="section"><div class="section-title">Recent Activity</div><div class="card"><div style="overflow-x:auto;"><table class="table"><thead><tr><th>Customer</th><th>Items</th><th>Total</th><th>Paid</th><th>Outstanding</th></tr></thead><tbody id="dashboardTransactions"></tbody></table></div></div></div>
     </div></div>
-    <script>
+    """
+
+
+DASHBOARD_SCRIPT = r"""
+<script>
     function escapeHtml(v){return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');}
     function formatItems(items,fallback){
         let values=[];
@@ -2206,7 +2210,8 @@ def dashboard_html():
         return '<ul style="margin:0;padding-left:18px;">'+values.map(v=>'<li>'+escapeHtml(v)+'</li>').join('')+'</ul>';
     }
     async function loadBusinessDashboard(){try{const r=await fetch('/api/dashboard');const d=await r.json();if(!d.success)throw new Error(d.error||'Dashboard error');const m=d.metrics||{};document.getElementById('dashTodaySales').textContent='₹'+Number(m.today_sales||0).toLocaleString('en-IN');document.getElementById('dashReceived').textContent='₹'+Number(m.received||0).toLocaleString('en-IN');document.getElementById('dashOutstanding').textContent='₹'+Number(m.outstanding||0).toLocaleString('en-IN');document.getElementById('dashCustomers').textContent=m.customers||0;const b=document.getElementById('dashboardTransactions');b.innerHTML=(d.recent_transactions||[]).map(t=>`<tr><td>${escapeHtml(t.customer||'-')}</td><td>${formatItems(t.items,t.item)}</td><td>₹${Number(t.total_amount||0).toLocaleString('en-IN')}</td><td>₹${Number(t.paid_amount||0).toLocaleString('en-IN')}</td><td>₹${Number(t.outstanding_amount||0).toLocaleString('en-IN')}</td></tr>`).join('');if(!b.innerHTML)b.innerHTML='<tr><td colspan="5" class="empty">No transactions yet.</td></tr>';}catch(e){console.error(e)}}loadBusinessDashboard();
-    </script>"""
+</script>
+"""""
 
 
 def home_html():
@@ -3031,8 +3036,8 @@ def setup_page(
     timeout and ensuring the Home controls bind after the DOM is available.
     """
     ui.add_head_html(APP_CSS)
+    ui.add_head_html(THEME_SCRIPT)
     ui.add_body_html(html)
-    ui.add_body_html(THEME_SCRIPT)
     if page_script:
         ui.add_body_html(page_script)
 
@@ -3054,7 +3059,8 @@ def dashboard_page():
         dashboard_html().replace(
             "__NAV__",
             navigation_html(),
-        )
+        ),
+        page_script=DASHBOARD_SCRIPT,
     )
 
 
