@@ -473,6 +473,142 @@ def get_or_create_customer(
 
 
 # ============================================================
+# DEMO DATA SEED
+# ============================================================
+
+def seed_demo_data():
+    """
+    Create realistic sample customers and transactions only when
+    the current user has no active transactions.
+
+    This is useful for a fresh deployed demo database. It never
+    adds duplicate demo records once transactions already exist.
+    """
+    with get_session() as session:
+        existing_transactions = session.exec(
+            select(Transaction)
+            .where(
+                Transaction.user_id == USER_ID,
+                Transaction.status == "active",
+            )
+        ).all()
+
+        if existing_transactions:
+            return
+
+        demo_customers = [
+            ("Ramesh", "+919876543210"),
+            ("Priya", "+919876543211"),
+            ("Amit", "+919876543212"),
+            ("Neha", "+919876543213"),
+        ]
+
+        customers = {}
+        for name, phone in demo_customers:
+            customers[name] = get_or_create_customer(
+                session=session,
+                name=name,
+                user_id=USER_ID,
+                phone=phone,
+            )
+
+        demo_transactions = [
+            {
+                "customer": "Ramesh",
+                "items": ["Rice", "Cooking Oil"],
+                "total": 500,
+                "paid": 200,
+                "language": "Hindi",
+                "transcript": (
+                    "Ramesh ne 500 rupaye ka maal liya, "
+                    "200 diye aur 300 kal dega."
+                ),
+            },
+            {
+                "customer": "Priya",
+                "items": ["Grocery Items"],
+                "total": 1200,
+                "paid": 1200,
+                "language": "English",
+                "transcript": (
+                    "Priya purchased grocery items worth "
+                    "1200 rupees and paid in full."
+                ),
+            },
+            {
+                "customer": "Amit",
+                "items": ["Milk", "Bread", "Biscuits"],
+                "total": 800,
+                "paid": 0,
+                "language": "Marathi",
+                "transcript": (
+                    "Amit ne 800 rupayacha maal ghetla, "
+                    "paise udya denar aahe."
+                ),
+            },
+            {
+                "customer": "Neha",
+                "items": ["Tea", "Sugar"],
+                "total": 450,
+                "paid": 250,
+                "language": "Hinglish",
+                "transcript": (
+                    "Neha ne 450 ka samaan liya, "
+                    "250 diye, 200 baki hai."
+                ),
+            },
+        ]
+
+        for data in demo_transactions:
+            total = money(data["total"])
+            paid = min(money(data["paid"]), total)
+            outstanding = round(max(total - paid, 0), 2)
+
+            if outstanding <= 0:
+                payment_status = "paid"
+            elif paid > 0:
+                payment_status = "partial"
+            else:
+                payment_status = "pending"
+
+            item_list = parse_items(data["items"])
+
+            transaction = Transaction(
+                user_id=USER_ID,
+                customer_id=customers[data["customer"]].id,
+                customer=data["customer"],
+                transaction_type="sale",
+                item=", ".join(item_list),
+                items_json=json.dumps(
+                    item_list,
+                    ensure_ascii=False,
+                ),
+                total_amount=total,
+                paid_amount=paid,
+                outstanding_amount=outstanding,
+                payment_status=payment_status,
+                detected_language=data["language"],
+                confidence=0.98,
+                confirmed=True,
+                raw_transcript=data["transcript"],
+                source="demo",
+                status="active",
+                due_date=(
+                    date.today()
+                    if outstanding > 0
+                    else None
+                ),
+            )
+
+            session.add(transaction)
+
+        session.commit()
+        print(
+            "[DEMO DATA] Sample customers and transactions created."
+        )
+
+
+# ============================================================
 # LIFESPAN
 # ============================================================
 
@@ -485,6 +621,7 @@ async def lifespan(app: FastAPI):
     print("=" * 60)
 
     init_db()
+    seed_demo_data()
     start_scheduler()
 
     try:
