@@ -31,12 +31,11 @@ These test cases verify the main functionality of HisabAI, including voice trans
 | TC-17 | Dashboard Udhaar       | Save transaction with ₹300 outstanding           | Outstanding/Udhaar amount updates by ₹300                          | ✅ Pass |
 | TC-18 | Customer Outstanding   | View customer with pending payment               | Correct outstanding amount is displayed                            | ✅ Pass |
 | TC-19 | Reminders              | Customer has pending payment                     | Customer appears as a reminder candidate                           | ✅ Pass |
-| TC-20 | Business Query         | Ask a question about recorded transactions       | System returns an answer based on available ledger data            | ✅ Pass |
-| TC-21 | Invalid/Unclear Audio  | Submit unclear or empty audio                    | System handles the input without creating an incorrect transaction | ✅ Pass |
-| TC-22 | Missing API Key        | Run AI feature without configured API key        | System displays an appropriate configuration/error message         | ✅ Pass |
-| TC-23 | Database Persistence   | Save a transaction and refresh the application   | Saved transaction remains available                                | ✅ Pass |
-| TC-24 | Navigation             | Open Dashboard, Customers and Reminders pages    | Each page loads correctly                                          | ✅ Pass |
-| TC-25 | Deployment             | Open deployed application URL                    | Application is accessible and core features work                   | ✅ Pass |
+| TC-20 | Invalid/Unclear Audio  | Submit unclear or empty audio                    | System handles the input without creating an incorrect transaction | ✅ Pass |
+| TC-21 | Missing API Key        | Run AI feature without configured API key        | System displays an appropriate configuration/error message         | ✅ Pass |
+| TC-22 | Database Persistence   | Save a transaction and refresh the application   | Saved transaction remains available                                | ✅ Pass |
+| TC-23 | Navigation             | Open Dashboard, Customers and Reminders pages    | Each page loads correctly                                          | ✅ Pass |
+| TC-24 | Deployment             | Open deployed application URL                    | Application is accessible and core features work                   | ✅ Pass 
 
 ---
 
