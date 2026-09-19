@@ -116,9 +116,6 @@ HisabAI/
         ├── README.md
         ├── ARCHITECTURE.md
         ├── TEST_CASES.md
-        ├── SUBMISSION_CHECKLIST.md
-        ├── DEMO_SCRIPT.md
-        ├── SOLUTION_SUMMARY.txt
         ├── .env.example
         ├── .gitignore
         │
