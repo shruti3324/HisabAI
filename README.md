@@ -381,13 +381,6 @@ The challenge prohibits copying, cloning, or closely mimicking public projects a
 
 The official submission requires a public GitHub repository with complete source code, a detailed README, and a 3–4 line solution summary submitted through the designated Google Form. The demo video is optional but encouraged. fileciteturn10file0L43-L52
 
-See:
-
-SUBMISSION_CHECKLIST.md
-
-DEMO_SCRIPT.md
-
-SOLUTION_SUMMARY.txt
 
 Author
 
